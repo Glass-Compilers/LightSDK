@@ -1,0 +1,3125 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<External>null</External>
+	<External>nil</External>
+	<Item class="LocalScript" referent="RBX05ACAFC8C6874578B513B9BBACC208F3">
+		<Properties>
+			<bool name="Disabled">false</bool>
+			<Content name="LinkedSource"><null></null></Content>
+			<string name="Name">CameraScript</string>
+			<ProtectedString name="Source">local RunService = game:GetService(&apos;RunService&apos;)
+local UserInputService = game:GetService(&apos;UserInputService&apos;)
+local PlayersService = game:GetService(&apos;Players&apos;)
+
+-- Issue with play solo? (F6)
+while not UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled do
+&#9;wait()
+end
+
+local RootCamera = script:WaitForChild(&apos;RootCamera&apos;)
+local ClassicCamera = require(RootCamera:WaitForChild(&apos;ClassicCamera&apos;))()
+local FollowCamera = require(RootCamera:WaitForChild(&apos;FollowCamera&apos;))()
+local PopperCam = require(script:WaitForChild(&apos;PopperCam&apos;))
+local Invisicam = require(script:WaitForChild(&apos;Invisicam&apos;))
+local ClickToMove = require(script:WaitForChild(&apos;ClickToMove&apos;))()
+local StarterPlayer = game:GetService(&apos;StarterPlayer&apos;)
+
+local GameSettings = UserSettings().GameSettings
+
+local function IsTouch()
+&#9;return UserInputService.TouchEnabled
+end
+
+local function shouldUseCustomCamera()
+&#9;local player = PlayersService.LocalPlayer
+&#9;local currentCamera = workspace.CurrentCamera
+&#9;if player then
+&#9;&#9;if currentCamera == nil or (currentCamera and currentCamera.CameraType == Enum.CameraType.Custom) then
+&#9;&#9;&#9;return true, player, currentCamera
+&#9;&#9;end
+&#9;end
+&#9;return false, player, currentCamera
+end
+
+local function isClickToMoveOn()
+&#9;local customModeOn, player, currentCamera = shouldUseCustomCamera()
+&#9;if customModeOn then
+&#9;&#9;if IsTouch() then -- Touch
+&#9;&#9;&#9;if player.DevTouchMovementMode == Enum.DevTouchMovementMode.ClickToMove or
+&#9;&#9;&#9;&#9;&#9;(player.DevTouchMovementMode == Enum.DevTouchMovementMode.UserChoice and GameSettings.TouchMovementMode == Enum.TouchMovementMode.ClickToMove) then
+&#9;&#9;&#9;&#9;return true
+&#9;&#9;&#9;end
+&#9;&#9;else -- Computer
+&#9;&#9;&#9;if player.DevComputerMovementMode == Enum.DevComputerMovementMode.ClickToMove or
+&#9;&#9;&#9;&#9;&#9;(player.DevComputerMovementMode == Enum.DevComputerMovementMode.UserChoice and GameSettings.ComputerMovementMode == Enum.ComputerMovementMode.ClickToMove) then
+&#9;&#9;&#9;&#9;return true
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;return false&#9;
+end
+
+local function getCurrentCameraMode()
+&#9;local customModeOn, player, currentCamera = shouldUseCustomCamera()
+&#9;if customModeOn then
+&#9;&#9;if IsTouch() then -- Touch (iPad, etc...)
+&#9;&#9;&#9;if isClickToMoveOn() then
+&#9;&#9;&#9;&#9;return Enum.DevTouchMovementMode.ClickToMove.Name
+&#9;&#9;&#9;elseif player.DevTouchCameraMode == Enum.DevTouchCameraMovementMode.UserChoice then
+&#9;&#9;&#9;&#9;local touchMovementMode = GameSettings.TouchCameraMovementMode
+&#9;&#9;&#9;&#9;if touchMovementMode == Enum.TouchCameraMovementMode.Default then
+&#9;&#9;&#9;&#9;&#9;return Enum.TouchCameraMovementMode.Classic.Name
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;return touchMovementMode.Name
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;return player.DevTouchCameraMode.Name
+&#9;&#9;&#9;end
+&#9;&#9;else -- Computer
+&#9;&#9;&#9;if isClickToMoveOn() then
+&#9;&#9;&#9;&#9;return Enum.DevComputerMovementMode.ClickToMove.Name
+&#9;&#9;&#9;elseif player.DevComputerCameraMode == Enum.DevComputerCameraMovementMode.UserChoice then
+&#9;&#9;&#9;&#9;local computerMovementMode = GameSettings.ComputerCameraMovementMode
+&#9;&#9;&#9;&#9;if computerMovementMode == Enum.ComputerCameraMovementMode.Default then
+&#9;&#9;&#9;&#9;&#9;return Enum.ComputerCameraMovementMode.Classic.Name
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;return computerMovementMode.Name
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;return player.DevComputerCameraMode.Name
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local function getCameraOcclusionMode()
+&#9;local customModeOn, player, currentCamera = shouldUseCustomCamera()
+&#9;if customModeOn then
+&#9;&#9;return player.DevCameraOcclusionMode
+&#9;end
+end
+
+local EnabledCamera = nil
+local EnabledOcclusion = nil
+local function OnCameraMovementModeChange(newCameraMode)
+&#9;if newCameraMode == Enum.DevComputerMovementMode.ClickToMove.Name then
+&#9;&#9;ClickToMove:Start()
+&#9;&#9;EnabledCamera = nil
+&#9;else
+&#9;&#9;if newCameraMode == Enum.ComputerCameraMovementMode.Classic.Name then
+&#9;&#9;&#9;EnabledCamera = ClassicCamera
+&#9;&#9;elseif newCameraMode == Enum.ComputerCameraMovementMode.Follow.Name then
+&#9;&#9;&#9;EnabledCamera = FollowCamera
+&#9;&#9;else -- They are disabling our special movement code
+&#9;&#9;&#9;EnabledCamera = nil
+&#9;&#9;end
+&#9;&#9;ClickToMove:Stop()
+&#9;end
+&#9;
+&#9;local newOcclusionMode = getCameraOcclusionMode()
+&#9;if EnabledOcclusion == Invisicam and newOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
+&#9;&#9;Invisicam:Cleanup()
+&#9;end
+&#9;if newOcclusionMode == Enum.DevCameraOcclusionMode.Zoom then
+&#9;&#9;EnabledOcclusion = PopperCam
+&#9;elseif newOcclusionMode == Enum.DevCameraOcclusionMode.Invisicam then
+&#9;&#9;EnabledOcclusion = Invisicam
+&#9;else
+&#9;&#9;EnabledOcclusion = false
+&#9;end
+end
+
+local function FuzzyEquals(num1, num2)
+&#9;return num1 &gt; num2 - 0.01 and num1 &lt; num2 + 0.01
+end
+
+local function Round(num, places)
+&#9;places = places or 0
+&#9;local decimalPivot = 10^places
+&#9;return math.floor(num * decimalPivot + 0.5) / decimalPivot
+end
+
+local CachedParts = {}
+local TransparencyDirty = true
+local LastTransparency = 0
+local function ModifyCharacterTransparency()
+&#9;local currentCamera = workspace.CurrentCamera
+&#9;local player = PlayersService.LocalPlayer
+&#9;local character = player and player.Character
+&#9;if player and character and currentCamera then
+&#9;&#9;local distance = player:DistanceFromCharacter(currentCamera.CoordinateFrame.p)
+&#9;&#9;local transparency = Round(math.max(0, math.min(1, (7 - distance) / 5)), 2)
+&#9;&#9;if TransparencyDirty or LastTransparency ~= transparency then
+&#9;&#9;&#9;for child, _ in pairs(CachedParts) do
+&#9;&#9;&#9;&#9;child.LocalTransparencyModifier = transparency
+&#9;&#9;&#9;end
+&#9;&#9;&#9;TransparencyDirty = false
+&#9;&#9;&#9;LastTransparency = transparency
+&#9;&#9;end
+&#9;end
+end
+
+local function OnPlayerAdded(player)
+&#9;local currentCameraConn = nil
+&#9;local renderSteppedConn = nil
+&#9;
+&#9;local function OnNewCamera()
+&#9;&#9;OnCameraMovementModeChange(getCurrentCameraMode())
+&#9;&#9;&#9;
+&#9;&#9;local currentCamera = workspace.CurrentCamera
+&#9;&#9;if currentCamera then
+&#9;&#9;&#9;if currentCameraConn then
+&#9;&#9;&#9;&#9;currentCameraConn:disconnect()
+&#9;&#9;&#9;&#9;currentCameraConn = nil
+&#9;&#9;&#9;end
+&#9;&#9;&#9;currentCameraConn = currentCamera.Changed:connect(function(prop)
+&#9;&#9;&#9;&#9;if prop == &apos;CameraType&apos; then
+&#9;&#9;&#9;&#9;&#9;OnCameraMovementModeChange(getCurrentCameraMode())
+&#9;&#9;&#9;&#9;&#9;TransparencyDirty = true
+&#9;&#9;&#9;&#9;elseif prop == &apos;CameraSubject&apos; then
+&#9;&#9;&#9;&#9;&#9;TransparencyDirty = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end)
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;workspace.Changed:connect(function(prop)
+&#9;&#9;if prop == &apos;CurrentCamera&apos; then
+&#9;&#9;&#9;OnNewCamera()
+&#9;&#9;end
+&#9;end)
+&#9;
+&#9;player.Changed:connect(function(prop)
+&#9;&#9;OnCameraMovementModeChange(getCurrentCameraMode())
+&#9;end)
+&#9;
+&#9;GameSettings.Changed:connect(function(prop)
+&#9;&#9;OnCameraMovementModeChange(getCurrentCameraMode())
+&#9;end)
+&#9;
+&#9;local function OnCharacterAdded(character)
+&#9;&#9;CachedParts = {}
+&#9;&#9;local function IsValidPartToModify(part)
+&#9;&#9;&#9;local function HasToolAncestor(object)
+&#9;&#9;&#9;&#9;if object.Parent == nil then return false end
+&#9;&#9;&#9;&#9;return object.Parent:IsA(&apos;Tool&apos;) or HasToolAncestor(object.Parent) 
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;if part:IsA(&apos;BasePart&apos;) or part:IsA(&apos;Decal&apos;) then
+&#9;&#9;&#9;&#9;return not HasToolAncestor(part)
+&#9;&#9;&#9;end
+&#9;&#9;&#9;return false
+&#9;&#9;end
+&#9;&#9;local function CachePartsRecursive(object)
+&#9;&#9;&#9;if object then
+&#9;&#9;&#9;&#9;if IsValidPartToModify(object) then
+&#9;&#9;&#9;&#9;&#9;CachedParts[object] = true
+&#9;&#9;&#9;&#9;&#9;TransparencyDirty = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;for _, child in pairs(object:GetChildren()) do
+&#9;&#9;&#9;&#9;&#9;CachePartsRecursive(child)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;character.DescendantAdded:connect(function(object)
+&#9;&#9;&#9;-- This is a part we want to invisify
+&#9;&#9;&#9;if IsValidPartToModify(object) then
+&#9;&#9;&#9;&#9;CachedParts[object] = true
+&#9;&#9;&#9;&#9;TransparencyDirty = true
+&#9;&#9;&#9;-- There is now a tool under the character
+&#9;&#9;&#9;elseif object:IsA(&apos;Tool&apos;) then
+&#9;&#9;&#9;&#9;object.DescendantAdded:connect(function(toolChild)
+&#9;&#9;&#9;&#9;&#9;CachedParts[toolChild] = nil
+&#9;&#9;&#9;&#9;&#9;if toolChild:IsA(&apos;BasePart&apos;) or toolChild:IsA(&apos;Decal&apos;) then
+&#9;&#9;&#9;&#9;&#9;&#9;-- Reset the transparency
+&#9;&#9;&#9;&#9;&#9;&#9;toolChild.LocalTransparencyModifier = 0
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;object.DescendantRemoving:connect(function(formerToolChild)
+&#9;&#9;&#9;&#9;&#9;wait() -- wait for new parent
+&#9;&#9;&#9;&#9;&#9;if character and formerToolChild and formerToolChild:IsDescendantOf(character) then
+&#9;&#9;&#9;&#9;&#9;&#9;if IsValidPartToModify(formerToolChild) then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;CachedParts[formerToolChild] = true
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;TransparencyDirty = true
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;character.DescendantRemoving:connect(function(object)
+&#9;&#9;&#9;if CachedParts[object] then
+&#9;&#9;&#9;&#9;CachedParts[object] = nil
+&#9;&#9;&#9;&#9;-- Reset the transparency
+&#9;&#9;&#9;&#9;object.LocalTransparencyModifier = 0
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;CachePartsRecursive(character)
+&#9;end
+&#9;
+&#9;player.CharacterRemoving:connect(function() CachedParts = {} end)
+&#9;player.CharacterAdded:connect(OnCharacterAdded)
+&#9;if player.Character then
+&#9;&#9;OnCharacterAdded(player.Character)
+&#9;end
+&#9;
+&#9;renderSteppedConn = RunService.RenderStepped:connect(function()
+&#9;&#9;if EnabledCamera then
+&#9;&#9;&#9;EnabledCamera:Update()
+&#9;&#9;end
+&#9;&#9;if EnabledOcclusion then
+&#9;&#9;&#9;EnabledOcclusion:Update()
+&#9;&#9;end
+&#9;&#9;if shouldUseCustomCamera() then
+&#9;&#9;&#9;ModifyCharacterTransparency()
+&#9;&#9;end
+&#9;end)
+&#9;
+&#9;OnNewCamera()
+&#9;OnCameraMovementModeChange(getCurrentCameraMode())&#9;
+end
+
+do
+&#9;while PlayersService.LocalPlayer == nil do wait() end
+&#9;OnPlayerAdded(PlayersService.LocalPlayer)
+end
+</ProtectedString>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX28335AC9D27C48AF9C552EF0F55B1117">
+			<Properties>
+				<string name="Name">ClickToMove</string>
+				<ProtectedString name="Source">-- Written By Kip Turner, Copyright Roblox 2014
+
+
+local UIS = game:GetService(&quot;UserInputService&quot;)
+local PathfindingService = game:GetService(&quot;PathfindingService&quot;)
+local PlayerService = game:GetService(&quot;Players&quot;)
+local RunService = game:GetService(&quot;RunService&quot;)
+local DebrisService = game:GetService(&apos;Debris&apos;)
+local ReplicatedStorage = game:GetService(&apos;ReplicatedStorage&apos;)
+
+local CameraScript = script.Parent
+local ClassicCameraModule = require(CameraScript:WaitForChild(&apos;RootCamera&apos;):WaitForChild(&apos;ClassicCamera&apos;))
+
+local Player = PlayerService.localPlayer
+local MyMouse = Player:GetMouse()
+
+
+local DirectPathEnabled = false
+local SHOW_PATH = false
+
+local RayCastIgnoreList = workspace.FindPartOnRayWithIgnoreList
+local GetPartsTouchingExtents = workspace.FindPartsInRegion3
+
+-- Bindable for when we want touch emergency controls
+-- TODO: Click to move should probably have it&apos;s own gui touch controls
+-- to manage this.
+local BindableEvent_OnFailStateChanged = nil
+if UIS.TouchEnabled then
+&#9;BindableEvent_OnFailStateChanged = Instance.new(&apos;BindableEvent&apos;)
+&#9;BindableEvent_OnFailStateChanged.Name = &quot;OnClickToMoveFailStateChange&quot;
+&#9;local CameraScript = script.Parent
+&#9;local PlayerScripts = CameraScript.Parent
+&#9;BindableEvent_OnFailStateChanged.Parent = PlayerScripts
+end
+
+
+--------------------------UTIL LIBRARY-------------------------------
+local Utility = {}
+do
+&#9;local Signal = {}
+
+&#9;function Signal.Create()
+&#9;&#9;local sig = {}
+&#9;&#9;
+&#9;&#9;local mSignaler = Instance.new(&apos;BindableEvent&apos;)
+&#9;&#9;
+&#9;&#9;local mArgData = nil
+&#9;&#9;local mArgDataCount = nil
+&#9;&#9;
+&#9;&#9;function sig:fire(...)
+&#9;&#9;&#9;mArgData = {...}
+&#9;&#9;&#9;mArgDataCount = select(&apos;#&apos;, ...)
+&#9;&#9;&#9;mSignaler:Fire()
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;function sig:connect(f)
+&#9;&#9;&#9;if not f then error(&quot;connect(nil)&quot;, 2) end
+&#9;&#9;&#9;return mSignaler.Event:connect(function()
+&#9;&#9;&#9;&#9;f(unpack(mArgData, 1, mArgDataCount))
+&#9;&#9;&#9;end)
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;function sig:wait()
+&#9;&#9;&#9;mSignaler.Event:wait()
+&#9;&#9;&#9;assert(mArgData, &quot;Missing arg data, likely due to :TweenSize/Position corrupting threadrefs.&quot;)
+&#9;&#9;&#9;return unpack(mArgData, 1, mArgDataCount)
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;return sig
+&#9;end
+&#9;Utility.Signal = Signal
+&#9;
+&#9;function Utility.Create(instanceType)
+&#9;&#9;return function(data)
+&#9;&#9;&#9;local obj = Instance.new(instanceType)
+&#9;&#9;&#9;for k, v in pairs(data) do
+&#9;&#9;&#9;&#9;if type(k) == &apos;number&apos; then
+&#9;&#9;&#9;&#9;&#9;v.Parent = obj
+&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;obj[k] = v
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;return obj
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;local function clamp(low, high, num)
+&#9;&#9;return math.max(math.min(high, num), low)
+&#9;end
+&#9;Utility.Clamp = clamp
+&#9;
+&#9;local function ViewSizeX()
+&#9;&#9;local x = MyMouse and MyMouse.ViewSizeX or 0
+&#9;&#9;local y = MyMouse and MyMouse.ViewSizeY or 0
+&#9;&#9;if x == 0 then
+&#9;&#9;&#9;return 1024
+&#9;&#9;else
+&#9;&#9;&#9;if x &gt; y then
+&#9;&#9;&#9;&#9;return x
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;return y
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;Utility.ViewSizeX = ViewSizeX
+&#9;
+&#9;local function ViewSizeY()
+&#9;&#9;local x = MyMouse and MyMouse.ViewSizeX or 0
+&#9;&#9;local y = MyMouse and MyMouse.ViewSizeY or 0
+&#9;&#9;if y == 0 then
+&#9;&#9;&#9;return 768
+&#9;&#9;else
+&#9;&#9;&#9;if x &gt; y then
+&#9;&#9;&#9;&#9;return y
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;return x
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;Utility.ViewSizeY = ViewSizeY
+&#9;
+&#9;local function AspectRatio()
+&#9;&#9;return ViewSizeX() / ViewSizeY()
+&#9;end
+&#9;Utility.AspectRatio = AspectRatio
+&#9;
+&#9;local function FindChacterAncestor(part)
+&#9;&#9;if part then
+&#9;&#9;&#9;local humanoid = part:FindFirstChild(&quot;Humanoid&quot;)
+&#9;&#9;&#9;if humanoid then
+&#9;&#9;&#9;&#9;return part, humanoid
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;return FindChacterAncestor(part.Parent)
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;Utility.FindChacterAncestor = FindChacterAncestor
+&#9;
+&#9;local function GetUnitRay(x, y, viewWidth, viewHeight, camera)
+&#9;&#9;if not (x or y or viewWidth or viewHeight or camera) then
+&#9;&#9;&#9;print(&quot;GetUnitRay: Missing arguement; returning nil&quot;)
+&#9;&#9;&#9;return
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;local function getImagePlaneDepth()
+&#9;&#9;&#9;local imagePlaneDepth = 1.0 / (2.0 * math.tan(math.rad(camera.FieldOfView) / 2.0));
+&#9;&#9;&#9;return imagePlaneDepth * viewHeight;
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;local screenWidth  = viewWidth;
+&#9;&#9;local screenHeight = viewHeight;
+&#9;
+&#9;&#9;x = clamp(0, screenWidth, x)
+&#9;&#9;y = clamp(0, screenHeight, y)
+&#9;
+&#9;&#9;local origin = camera.CoordinateFrame.p
+&#9;
+&#9;&#9;local cx = screenWidth  / 2.0;
+&#9;&#9;local cy = screenHeight / 2.0;
+&#9;  
+&#9;&#9;local direction = Vector3.new((x - cx), -(y - cy), -(getImagePlaneDepth()));
+&#9;
+&#9;&#9;direction = camera.CoordinateFrame:vectorToWorldSpace(direction);
+&#9;
+&#9;&#9;-- Normalize the direction (we didn&apos;t do it before)
+&#9;&#9;direction = direction.unit;
+&#9;
+&#9;&#9;return Ray.new(origin, direction);
+&#9;end
+&#9;Utility.GetUnitRay = GetUnitRay
+&#9;
+&#9;local RayCastIgnoreList = workspace.FindPartOnRayWithIgnoreList
+&#9;local function Raycast(ray, ignoreNonCollidable, ignoreList)
+&#9;&#9;local ignoreList = ignoreList or {}
+&#9;&#9;local hitPart, hitPos = RayCastIgnoreList(workspace, ray, ignoreList)
+&#9;&#9;if hitPart then
+&#9;&#9;&#9;if ignoreNonCollidable and hitPart.CanCollide == false then
+&#9;&#9;&#9;&#9;table.insert(ignoreList, hitPart)
+&#9;&#9;&#9;&#9;return Raycast(ray, ignoreNonCollidable, ignoreList)
+&#9;&#9;&#9;end
+&#9;&#9;&#9;return hitPart, hitPos
+&#9;&#9;end
+&#9;&#9;return nil, nil
+&#9;end
+&#9;Utility.Raycast = Raycast
+&#9;
+&#9;
+&#9;Utility.Round = function(num, roundToNearest)
+&#9;&#9;roundToNearest = roundToNearest or 1
+&#9;&#9;return math.floor((num + roundToNearest/2) / roundToNearest) * roundToNearest
+&#9;end
+&#9;
+&#9;local function AveragePoints(positions)
+&#9;&#9;local avgPos = Vector2.new(0,0)
+&#9;&#9;if #positions &gt; 0 then
+&#9;&#9;&#9;for i = 1, #positions do
+&#9;&#9;&#9;&#9;avgPos = avgPos + positions[i]
+&#9;&#9;&#9;end
+&#9;&#9;&#9;avgPos = avgPos / #positions
+&#9;&#9;end
+&#9;&#9;return avgPos
+&#9;end
+&#9;Utility.AveragePoints = AveragePoints
+&#9;
+&#9;local function FuzzyEquals(numa, numb)
+&#9;&#9;return numa + 0.1 &gt; numb and numa - 0.1 &lt; numb
+&#9;end
+&#9;Utility.FuzzyEquals = FuzzyEquals
+&#9;
+&#9;local LastInput = 0
+&#9;UIS.InputBegan:connect(function(inputObject, wasSunk)
+&#9;&#9;if not wasSunk then
+&#9;&#9;&#9;if inputObject.UserInputType == Enum.UserInputType.Touch or
+&#9;&#9;&#9;&#9;&#9;inputObject.UserInputType == Enum.UserInputType.MouseButton1 or
+&#9;&#9;&#9;&#9;&#9;inputObject.UserInputType == Enum.UserInputType.MouseButton2 then
+&#9;&#9;&#9;&#9;LastInput = tick()
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end)
+&#9;Utility.GetLastInput = function()
+&#9;&#9;return LastInput
+&#9;end
+end
+
+local humanoidCache = {}
+local function findPlayerHumanoid(player)
+&#9;local character = player and player.Character
+&#9;if character then
+&#9;&#9;local resultHumanoid = humanoidCache[player]
+&#9;&#9;if resultHumanoid and resultHumanoid.Parent == character then
+&#9;&#9;&#9;return resultHumanoid
+&#9;&#9;else
+&#9;&#9;&#9;humanoidCache[player] = nil -- Bust Old Cache
+&#9;&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;&#9;if child:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;&#9;humanoidCache[player] = child
+&#9;&#9;&#9;&#9;&#9;return child
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local function CFrameInterpolator(c0, c1) -- (CFrame from, CFrame to) -&gt; (float theta, (float fraction -&gt; CFrame between))
+&#9;local fromAxisAngle = CFrame.fromAxisAngle
+&#9;local components = CFrame.new().components
+&#9;local inverse = CFrame.new().inverse
+&#9;local v3 = Vector3.new
+&#9;local acos = math.acos
+&#9;local sqrt = math.sqrt
+&#9;local invroot2 = 1 / math.sqrt(2)
+&#9;-- The expanded matrix
+&#9;local _, _, _, xx, yx, zx, 
+&#9;               xy, yy, zy, 
+&#9;               xz, yz, zz = components(inverse(c0)*c1)
+&#9;-- The cos-theta of the axisAngles from 
+&#9;local cosTheta = (xx + yy + zz - 1)/2
+&#9;-- Rotation axis
+&#9;local rotationAxis = v3(yz-zy, zx-xz, xy-yx)
+&#9;-- The position to tween through
+&#9;local positionDelta = (c1.p - c0.p)
+&#9;-- Theta
+&#9;local theta;&#9;&#9;&#9;
+&#9;-- Catch degenerate cases
+&#9;if cosTheta &gt;= 0.999 then
+&#9;&#9;-- Case same rotation, just return an interpolator over the positions
+&#9;&#9;return 0, function(t)
+&#9;&#9;&#9;return c0 + positionDelta*t
+&#9;&#9;end&#9;
+&#9;elseif cosTheta &lt;= -0.999 then
+&#9;&#9;-- Case exactly opposite rotations, disambiguate
+&#9;&#9;theta = math.pi
+&#9;&#9;xx = (xx + 1) / 2
+&#9;&#9;yy = (yy + 1) / 2
+&#9;&#9;zz = (zz + 1) / 2
+&#9;&#9;if xx &gt; yy and xx &gt; zz then
+&#9;&#9;&#9;if xx &lt; 0.001 then
+&#9;&#9;&#9;&#9;rotationAxis = v3(0, invroot2, invroot2)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;local x = sqrt(xx)
+&#9;&#9;&#9;&#9;xy = (xy + yx) / 4
+&#9;&#9;&#9;&#9;xz = (xz + zx) / 4
+&#9;&#9;&#9;&#9;rotationAxis = v3(x, xy/x, xz/x)
+&#9;&#9;&#9;end
+&#9;&#9;elseif yy &gt; zz then
+&#9;&#9;&#9;if yy &lt; 0.001 then
+&#9;&#9;&#9;&#9;rotationAxis = v3(invroot2, 0, invroot2)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;local y = sqrt(yy)
+&#9;&#9;&#9;&#9;xy = (xy + yx) / 4
+&#9;&#9;&#9;&#9;yz = (yz + zy) / 4
+&#9;&#9;&#9;&#9;rotationAxis = v3(xy/y, y, yz/y)
+&#9;&#9;&#9;end&#9;
+&#9;&#9;else
+&#9;&#9;&#9;if zz &lt; 0.001 then
+&#9;&#9;&#9;&#9;rotationAxis = v3(invroot2, invroot2, 0)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;local z = sqrt(zz)
+&#9;&#9;&#9;&#9;xz = (xz + zx) / 4
+&#9;&#9;&#9;&#9;yz = (yz + zy) / 4
+&#9;&#9;&#9;&#9;rotationAxis = v3(xz/z, yz/z, z)
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;else
+&#9;&#9;-- Normal case, get theta from cosTheta
+&#9;&#9;theta = acos(cosTheta)
+&#9;end
+&#9;-- Return the interpolator
+&#9;return theta, function(t)
+&#9;&#9;return c0*fromAxisAngle(rotationAxis, theta*t) + positionDelta*t
+&#9;end
+end
+---------------------------------------------------------
+
+local Signal = Utility.Signal
+local Create = Utility.Create
+
+--------------------------CHARACTER CONTROL-------------------------------
+local function CreateController()
+&#9;local this = {}
+
+&#9;this.TorsoLookPoint = nil
+&#9;
+&#9;function this:SetTorsoLookPoint(point)
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;if humanoid then
+&#9;&#9;&#9;humanoid.AutoRotate = false
+&#9;&#9;end
+&#9;&#9;this.TorsoLookPoint = point
+&#9;&#9;self:UpdateTorso()
+&#9;&#9;delay(2,
+&#9;&#9;&#9;function()
+&#9;&#9;&#9;-- this isnt technically correct for detecting if this is the last issue to the setTorso function
+&#9;&#9;&#9;if this.TorsoLookPoint == point then
+&#9;&#9;&#9;&#9;this.TorsoLookPoint = nil
+&#9;&#9;&#9;&#9;if humanoid then
+&#9;&#9;&#9;&#9;&#9;humanoid.AutoRotate = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;end
+&#9;
+&#9;function this:UpdateTorso(point)
+&#9;&#9;if this.TorsoLookPoint then
+&#9;&#9;&#9;point = this.TorsoLookPoint
+&#9;&#9;else
+&#9;&#9;&#9;return
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;if torso then
+&#9;&#9;&#9;local lookVec = (point - torso.CFrame.p).unit
+&#9;&#9;&#9;local squashedLookVec = Vector3.new(lookVec.X, 0, lookVec.Z).unit
+&#9;&#9;&#9;torso.CFrame = CFrame.new(torso.CFrame.p, torso.CFrame.p + squashedLookVec)
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;return this
+end
+
+local CharacterControl = CreateController()
+-----------------------------------------------------------------------
+
+--------------------------PC AUTO JUMPER-------------------------------
+
+local function GetCharacter()
+&#9;return Player and Player.Character
+end
+
+local function GetTorso()
+&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;return humanoid and humanoid.Torso
+end
+
+local function IsPartAHumanoid(part)
+&#9;return part and part.Parent and (part.Parent:FindFirstChild(&apos;Humanoid&apos;) ~= nil)
+end
+
+local function doAutoJump()
+&#9;local character = GetCharacter()
+&#9;if (character == nil) then
+&#9;&#9;return;
+&#9;end
+&#9;
+&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;if (humanoid == nil) then
+&#9;&#9;return;
+&#9;end
+
+&#9;local rayLength = 1.5; 
+&#9;-- This is how high a ROBLOXian jumps from the mid point of his torso 
+&#9;local jumpHeight = 7.0; 
+
+&#9;local torso = GetTorso()
+&#9;if (torso == nil) then
+&#9;&#9;return; 
+&#9;end
+
+&#9;local torsoCFrame = torso.CFrame;
+&#9;local torsoLookVector = torsoCFrame.lookVector; 
+&#9;local torsoPos = torsoCFrame.p; 
+
+&#9;local torsoRay = Ray.new(torsoPos + Vector3.new(0, -torso.Size.Y/2, 0), torsoLookVector * rayLength); 
+&#9;local jumpRay = Ray.new(torsoPos + Vector3.new(0, jumpHeight - torso.Size.Y, 0), torsoLookVector * rayLength); 
+&#9;&#9;
+&#9;local hitPart, _ = RayCastIgnoreList(workspace, torsoRay, {character}, false)
+&#9;local jumpHitPart, _ = RayCastIgnoreList(workspace, jumpRay, {character}, false)
+
+&#9;if (hitPart and jumpHitPart == nil and hitPart.CanCollide == true) then
+&#9;&#9; -- NOTE: this follow line is not in the C++ impl, but an improvement  in Click to Move
+&#9;&#9;if not IsPartAHumanoid(hitPart) then
+&#9;&#9;&#9;humanoid.Jump = true;
+&#9;&#9;end
+&#9;end
+end
+
+local NO_JUMP_STATES = 
+{
+&#9;[Enum.HumanoidStateType.FallingDown] = false;
+&#9;[Enum.HumanoidStateType.Flying] = false;
+&#9;[Enum.HumanoidStateType.Freefall] = false;
+&#9;[Enum.HumanoidStateType.GettingUp] = false;
+&#9;[Enum.HumanoidStateType.Ragdoll] = false;
+&#9;[Enum.HumanoidStateType.Running] = false;
+&#9;[Enum.HumanoidStateType.Seated] = false;
+&#9;[Enum.HumanoidStateType.Swimming] = false;
+&#9;
+&#9;-- Special case to detect if we are on a ladder
+&#9;[Enum.HumanoidStateType.Climbing] = false;
+}
+
+local function enableAutoJump()
+&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;local currentState = humanoid and humanoid:GetState()
+&#9;if currentState then
+&#9;&#9;return NO_JUMP_STATES[currentState] == nil
+&#9;end
+&#9;return false
+end
+
+local function getAutoJump()
+&#9;return true
+end
+
+local function vec3IsZero(vec3)
+&#9;return vec3.magnitude &lt; 0.05
+end
+
+-- NOTE: This function is radically different from the engine&apos;s implementation
+local function calcDesiredWalkVelocity()
+&#9;-- TEMP
+&#9;return Vector3.new(1,1,1)
+end
+
+local function preStepSimulatorSide(dt)
+&#9;if getAutoJump() and enableAutoJump() then
+&#9;&#9;local desiredWalkVelocity = calcDesiredWalkVelocity();
+&#9;&#9;if (not vec3IsZero(desiredWalkVelocity)) then
+&#9;&#9;&#9;doAutoJump(); 
+&#9;&#9;end
+&#9;end
+end
+
+local function AutoJumper()
+&#9;local this = {}
+&#9;local running = false
+&#9;local runRoutine = nil
+&#9;
+&#9;function this:Run()
+&#9;&#9;running = true
+&#9;&#9;local thisRoutine = nil
+&#9;&#9;thisRoutine = coroutine.create(function()
+&#9;&#9;&#9;while running and thisRoutine == runRoutine do
+&#9;&#9;&#9;&#9;this:Step()
+&#9;&#9;&#9;&#9;wait()
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;runRoutine = thisRoutine
+&#9;&#9;coroutine.resume(thisRoutine)
+&#9;end
+&#9;
+&#9;function this:Stop()
+&#9;&#9;running = false
+&#9;end
+&#9;
+&#9;function this:Step()
+&#9;&#9;preStepSimulatorSide()
+&#9;end
+&#9;
+&#9;return this
+end
+
+-----------------------------------------------------------------------------
+
+-----------------------------------PATHER--------------------------------------
+
+local function CreateDestinationIndicator(pos)
+&#9;local destinationGlobe = Create&apos;Part&apos;
+&#9;{
+&#9;&#9;Name = &apos;PathGlobe&apos;;
+&#9;&#9;TopSurface = &apos;Smooth&apos;;
+&#9;&#9;BottomSurface = &apos;Smooth&apos;;
+&#9;&#9;Shape = &apos;Ball&apos;;
+&#9;&#9;CanCollide = false;
+&#9;&#9;Size = Vector3.new(2,2,2);
+&#9;&#9;BrickColor = BrickColor.new(&apos;Institutional white&apos;);
+&#9;&#9;Transparency = 0;
+&#9;&#9;Anchored = true;
+&#9;&#9;CFrame = CFrame.new(pos);
+&#9;}
+&#9;return destinationGlobe
+end
+
+local function Pather(character, point)
+&#9;local this = {}
+&#9;
+&#9;this.Cancelled = false
+&#9;this.Started = false
+&#9;
+&#9;this.Finished = Signal.Create()
+&#9;this.PathFailed = Signal.Create()
+&#9;this.PathStarted = Signal.Create()
+
+&#9;this.PathComputed = false
+&#9;
+&#9;function this:YieldUntilPointReached(character, point, timeout)
+&#9;&#9;timeout = timeout or 10000000
+&#9;&#9;
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;local start = tick()
+&#9;&#9;local lastMoveTo = start
+&#9;&#9;while torso and tick() - start &lt; timeout and this.Cancelled == false do
+&#9;&#9;&#9;local diffVector = (point - torso.CFrame.p)
+&#9;&#9;&#9;local xzMagnitude = (diffVector * Vector3.new(1,0,1)).magnitude
+&#9;&#9;&#9;if xzMagnitude &lt; 6 then 
+&#9;&#9;&#9;&#9;-- Jump if the path is telling is to go upwards
+&#9;&#9;&#9;&#9;if diffVector.Y &gt;= 2 then
+&#9;&#9;&#9;&#9;&#9;humanoid.Jump = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;-- The hard-coded number 2 here is from the engine&apos;s MoveTo implementation
+&#9;&#9;&#9;if xzMagnitude &lt; 2 then
+&#9;&#9;&#9;&#9;return true
+&#9;&#9;&#9;end
+&#9;&#9;&#9;-- Keep on issuing the move command because it will automatically quit every so often.
+&#9;&#9;&#9;if tick() - lastMoveTo &gt; 1.5 then
+&#9;&#9;&#9;&#9;humanoid:MoveTo(point)
+&#9;&#9;&#9;&#9;lastMoveTo = tick()
+&#9;&#9;&#9;end
+&#9;&#9;&#9;CharacterControl:UpdateTorso(point)
+&#9;&#9;&#9;wait()
+&#9;&#9;end
+&#9;&#9;return false
+&#9;end
+&#9;
+&#9;function this:Cancel()
+&#9;&#9;this.Cancelled = true
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;if humanoid and torso then
+&#9;&#9;&#9;humanoid:MoveTo(torso.CFrame.p)
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;function this:CheckOcclusion(point1, point2, character, torsoRadius)
+&#9;&#9;--print(&quot;Point1&quot; , point1 , &quot;point2&quot; , point2)
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;if torsoRadius == nil then
+&#9;&#9;&#9;torsoRadius = torso and Vector3.new(torso.Size.X/2,0,torso.Size.Z/2) or Vector3.new(1,0,1)
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;local diffVector = point2 - point1
+&#9;&#9;local directionVector = diffVector.unit
+&#9;&#9;
+&#9;&#9;local rightVector = Vector3.new(0,1,0):Cross(directionVector) * torsoRadius
+&#9;&#9;
+&#9;&#9;local rightPart, _ = Utility.Raycast(Ray.new(point1 + rightVector, diffVector + rightVector), true, {character})
+&#9;&#9;local hitPart, _ = Utility.Raycast(Ray.new(point1, diffVector), true, {character})
+&#9;&#9;local leftPart, _ = Utility.Raycast(Ray.new(point1 - rightVector, diffVector - rightVector), true, {character})
+&#9;&#9;
+&#9;&#9;if rightPart or hitPart or leftPart then
+&#9;&#9;&#9;return false
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;-- Make sure we have somewhere to stand on
+&#9;&#9;local midPt = (point2 + point1) / 2
+&#9;&#9;local studsBetweenSamples = 2
+&#9;&#9;for i = 1, math.floor(diffVector.magnitude/studsBetweenSamples) do
+&#9;&#9;&#9;local downPart, _ = Utility.Raycast(Ray.new(point1 + directionVector * i * studsBetweenSamples, Vector3.new(0,-7,0)), true, {character})
+&#9;&#9;&#9;if not downPart then
+&#9;&#9;&#9;&#9;return false
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;return true
+&#9;end
+&#9;
+&#9;function this:SmoothPoints(pathToSmooth)
+&#9;&#9;local result = {}
+&#9;&#9;
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;for i = 1, #pathToSmooth do
+&#9;&#9;&#9;table.insert(result, pathToSmooth[i])
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;-- Backwards for safe-deletion
+&#9;&#9;for i = #result - 1, 1, -1 do
+&#9;&#9;&#9;if i + 1 &lt;= #result then
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;local nextPoint = result[i+1]&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;local thisPoint = result[i]
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;local lastPoint = result[i-1]
+&#9;&#9;&#9;&#9;if lastPoint == nil then
+&#9;&#9;&#9;&#9;&#9;lastPoint = torso and Vector3.new(torso.CFrame.p.X, thisPoint.Y, torso.CFrame.p.Z)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;if lastPoint and Utility.FuzzyEquals(thisPoint.Y, lastPoint.Y) and Utility.FuzzyEquals(thisPoint.Y, nextPoint.Y) then
+&#9;&#9;&#9;&#9;&#9;if this:CheckOcclusion(lastPoint, nextPoint, character) then
+&#9;&#9;&#9;&#9;&#9;&#9;table.remove(result, i)
+&#9;&#9;&#9;&#9;&#9;&#9;-- Move i back one to recursively-smooth
+&#9;&#9;&#9;&#9;&#9;&#9;i = i + 1
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;return result
+&#9;end
+&#9;
+&#9;function this:CheckNeighboringCells(character)
+&#9;&#9;local pathablePoints = {}
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = character and humanoid and humanoid.Torso
+&#9;&#9;if torso then
+&#9;&#9;&#9;local torsoCFrame = torso.CFrame
+&#9;&#9;&#9;local torsoPos = torsoCFrame.p
+&#9;&#9;&#9;-- Minus and plus 2 is so we can get it into the cell-corner space and then translate it back into cell-center space
+&#9;&#9;&#9;local roundedPos = Vector3.new(Utility.Round(torsoPos.X-2,4)+2, Utility.Round(torsoPos.Y-2,4)+2, Utility.Round(torsoPos.Z-2,4)+2)
+&#9;&#9;&#9;local neighboringCells = {}
+&#9;&#9;&#9;for x = -4, 4, 8 do
+&#9;&#9;&#9;&#9;for z = -4, 4, 8 do
+&#9;&#9;&#9;&#9;&#9;table.insert(neighboringCells, roundedPos + Vector3.new(x,0,z))
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;for _, testPoint in pairs(neighboringCells) do
+&#9;&#9;&#9;&#9;local pathable = this:CheckOcclusion(roundedPos, testPoint, character, Vector3.new(0,0,0))
+&#9;&#9;&#9;&#9;if pathable then
+&#9;&#9;&#9;&#9;&#9;table.insert(pathablePoints, testPoint)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;return pathablePoints
+&#9;end
+&#9;
+&#9;function this:ComputeDirectPath()
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;if torso then
+&#9;&#9;&#9;local startPt = torso.CFrame.p
+&#9;&#9;&#9;local finishPt = point
+&#9;&#9;&#9;if (finishPt - startPt).magnitude &lt; 150 then
+&#9;&#9;&#9;&#9;-- move back the destination by 2 studs or otherwise the pather will collide with the object we are trying to reach
+&#9;&#9;&#9;&#9;finishPt = finishPt - (finishPt - startPt).unit * 2
+&#9;&#9;&#9;&#9;if this:CheckOcclusion(startPt, finishPt, character, Vector3.new(0,0,0)) then
+&#9;&#9;&#9;&#9;&#9;local pathResult = {}
+&#9;&#9;&#9;&#9;&#9;pathResult.Status = Enum.PathStatus.Success
+&#9;&#9;&#9;&#9;&#9;function pathResult:GetPointCoordinates()
+&#9;&#9;&#9;&#9;&#9;&#9;return {finishPt}
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;return pathResult
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;local function AllAxisInThreshhold(targetPt, otherPt, threshold)
+&#9;&#9;return math.abs(targetPt.X - otherPt.X) &lt;= threshold and 
+&#9;&#9;&#9;math.abs(targetPt.Y - otherPt.Y) &lt;= threshold and
+&#9;&#9;&#9;math.abs(targetPt.Z - otherPt.Z) &lt;= threshold
+&#9;end
+&#9;
+&#9;function this:ComputePath()
+&#9;&#9;local smoothed = false
+&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;if torso then
+&#9;&#9;&#9;if this.PathComputed then return end
+&#9;&#9;&#9;this.PathComputed = true
+&#9;&#9;&#9;-- Will yield the script since it is an Async script (start, finish, maxDistance)
+&#9;&#9;&#9;-- Try to use the smooth function, but it may not exist yet :(
+&#9;&#9;&#9;local success = pcall(function()
+&#9;&#9;&#9;&#9;this.pathResult = PathfindingService:ComputeSmoothPathAsync(torso.CFrame.p, point, 400)
+&#9;&#9;&#9;&#9;smoothed = true
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;if not success then
+&#9;&#9;&#9;&#9;this.pathResult = PathfindingService:ComputeRawPathAsync(torso.CFrame.p, point, 400)
+&#9;&#9;&#9;&#9;smoothed = false
+&#9;&#9;&#9;end
+&#9;&#9;&#9;this.pointList = this.pathResult and this.pathResult:GetPointCoordinates()
+&#9;&#9;&#9;local pathFound = false
+&#9;&#9;&#9;if this.pathResult.Status == Enum.PathStatus.FailFinishNotEmpty then
+&#9;&#9;&#9;&#9;-- Lets try again with a slightly set back start point; it is ok to do this again so the FailFinishNotEmpty uses little computation
+&#9;&#9;&#9;&#9;local diffVector = point - workspace.CurrentCamera.CoordinateFrame.p
+&#9;&#9;&#9;&#9;if diffVector.magnitude &gt; 2 then
+&#9;&#9;&#9;&#9;&#9;local setBackPoint = point - (diffVector).unit * 2.1
+&#9;&#9;&#9;&#9;&#9;local success = pcall(function()
+&#9;&#9;&#9;&#9;&#9;&#9;this.pathResult = PathfindingService:ComputeSmoothPathAsync(torso.CFrame.p, setBackPoint, 400)
+&#9;&#9;&#9;&#9;&#9;&#9;smoothed = true
+&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;&#9;if not success then
+&#9;&#9;&#9;&#9;&#9;&#9;this.pathResult = PathfindingService:ComputeRawPathAsync(torso.CFrame.p, setBackPoint, 400)
+&#9;&#9;&#9;&#9;&#9;&#9;smoothed = false
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;this.pointList = this.pathResult and this.pathResult:GetPointCoordinates()
+&#9;&#9;&#9;&#9;&#9;pathFound = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if this.pathResult.Status == Enum.PathStatus.ClosestNoPath and #this.pointList &gt;= 1 and pathFound == false then
+&#9;&#9;&#9;&#9;local otherPt = this.pointList[#this.pointList]
+&#9;&#9;&#9;&#9;if AllAxisInThreshhold(point, otherPt, 4) and (torso.CFrame.p - point).magnitude &gt; (otherPt - point).magnitude then
+&#9;&#9;&#9;&#9;&#9;local pathResult = {}
+&#9;&#9;&#9;&#9;&#9;pathResult.Status = Enum.PathStatus.Success
+&#9;&#9;&#9;&#9;&#9;function pathResult:GetPointCoordinates()
+&#9;&#9;&#9;&#9;&#9;&#9;return {this.pointList}
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;this.pathResult = pathResult
+&#9;&#9;&#9;&#9;&#9;pathFound = true
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if (this.pathResult.Status == Enum.PathStatus.FailStartNotEmpty or this.pathResult.Status == Enum.PathStatus.ClosestNoPath) and pathFound == false then
+&#9;&#9;&#9;&#9;local pathablePoints = this:CheckNeighboringCells(character)
+&#9;&#9;&#9;&#9;for _, otherStart in pairs(pathablePoints) do
+&#9;&#9;&#9;&#9;&#9;local pathResult;
+&#9;&#9;&#9;&#9;&#9;local success = pcall(function()
+&#9;&#9;&#9;&#9;&#9;&#9;pathResult = PathfindingService:ComputeSmoothPathAsync(otherStart, point, 400)
+&#9;&#9;&#9;&#9;&#9;&#9;smoothed = true
+&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;&#9;if not success then
+&#9;&#9;&#9;&#9;&#9;&#9;pathResult = PathfindingService:ComputeRawPathAsync(otherStart, point, 400)
+&#9;&#9;&#9;&#9;&#9;&#9;smoothed = false
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;if pathResult and pathResult.Status == Enum.PathStatus.Success then
+&#9;&#9;&#9;&#9;&#9;&#9;this.pathResult = pathResult
+&#9;&#9;&#9;&#9;&#9;&#9;if this.pathResult then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;this.pointList = this.pathResult:GetPointCoordinates()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;table.insert(this.pointList, 1, otherStart)
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;break
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if DirectPathEnabled then
+&#9;&#9;&#9;&#9;if this.pathResult.Status ~= Enum.PathStatus.Success then
+&#9;&#9;&#9;&#9;&#9;local directPathResult = this:ComputeDirectPath()
+&#9;&#9;&#9;&#9;&#9;if directPathResult and directPathResult.Status == Enum.PathStatus.Success then
+&#9;&#9;&#9;&#9;&#9;&#9;this.pathResult = directPathResult
+&#9;&#9;&#9;&#9;&#9;&#9;this.pointList = directPathResult:GetPointCoordinates()
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;return smoothed
+&#9;end
+&#9;
+&#9;function this:IsValidPath()
+&#9;&#9;this:ComputePath()
+&#9;&#9;local pathStatus = this.pathResult.Status
+&#9;&#9;return pathStatus == Enum.PathStatus.Success
+&#9;end
+&#9;
+&#9;function this:GetPathStatus()
+&#9;&#9;this:ComputePath()
+&#9;&#9;return this.pathResult.Status
+&#9;end
+&#9;&#9;
+&#9;function this:Start()
+&#9;&#9;spawn(function()
+&#9;&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;&#9;--humanoid.AutoRotate = false
+&#9;&#9;&#9;local torso = humanoid and humanoid.Torso
+&#9;&#9;&#9;if torso then&#9;&#9;
+&#9;&#9;&#9;&#9;if this.Started then return end
+&#9;&#9;&#9;&#9;this.Started = true
+&#9;&#9;&#9;&#9;-- Will yield the script since it is an Async function script (start, finish, maxDistance)
+&#9;&#9;&#9;&#9;local smoothed = this:ComputePath()
+&#9;&#9;&#9;&#9;if this:IsValidPath() then
+&#9;&#9;&#9;&#9;&#9;this.PathStarted:fire()
+&#9;&#9;&#9;&#9;&#9;-- smooth out zig-zaggy paths
+&#9;&#9;&#9;&#9;&#9;local smoothPath = smoothed and this.pointList or this:SmoothPoints(this.pointList)
+&#9;&#9;&#9;&#9;&#9;for i, point in pairs(smoothPath) do
+&#9;&#9;&#9;&#9;&#9;&#9;if humanoid then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if this.Cancelled then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;return
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local wayPoint = nil
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if SHOW_PATH then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;wayPoint = CreateDestinationIndicator(point)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;wayPoint.BrickColor = BrickColor.new(&quot;New Yeller&quot;)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;wayPoint.Parent = workspace
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;humanoid:MoveTo(point)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local distance = ((torso.CFrame.p - point) * Vector3.new(1,0,1)).magnitude
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local approxTime = 10
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if math.abs(humanoid.WalkSpeed) &gt; 0 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;approxTime = distance / math.abs(humanoid.WalkSpeed)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local yielding = true
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if i == 1 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;--local rotatedCFrame = CameraModule:LookAtPreserveHeight(point)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if CameraModule then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local rotatedCFrame = CameraModule:LookAtPreserveHeight(smoothPath[#smoothPath])
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local finishedSignal, duration = CameraModule:TweenCameraLook(rotatedCFrame)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;--CharacterControl:SetTorsoLookPoint(point)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;---[[
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if (humanoid.Torso.CFrame.p - point).magnitude &gt; 9 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;spawn(function()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;while yielding and this.Cancelled == false do
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if CameraModule then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local look = CameraModule:GetCameraLook()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local squashedLook = (look * Vector3.new(1,0,1)).unit
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local direction = ((point - workspace.CurrentCamera.CoordinateFrame.p) * Vector3.new(1,0,1)).unit
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local theta = math.deg(math.acos(squashedLook:Dot(direction)))
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if tick() - Utility.GetLastInput() &gt; 2 and theta &gt; (workspace.CurrentCamera.FieldOfView / 2) then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local rotatedCFrame = CameraModule:LookAtPreserveHeight(point)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local finishedSignal, duration = CameraModule:TweenCameraLook(rotatedCFrame)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;--return
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;wait(0.1)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;--]]
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local didReach = this:YieldUntilPointReached(character, point, approxTime * 3 + 1)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;yielding = false
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if SHOW_PATH then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;wayPoint:Destroy()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if not didReach then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;this.PathFailed:fire()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;return
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;this.Finished:fire()
+&#9;&#9;&#9;&#9;&#9;return
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;this.PathFailed:fire()
+&#9;&#9;end)
+&#9;end
+&#9;
+&#9;return this
+end
+
+-------------------------------------------------------------------------
+
+local function FlashRed(object)
+&#9;local origColor = object.BrickColor
+&#9;local redColor = BrickColor.new(&quot;Really red&quot;)
+&#9;local start = tick()
+&#9;local duration = 4
+&#9;spawn(function()
+&#9;&#9;while object and tick() - start &lt; duration do
+&#9;&#9;&#9;object.BrickColor = origColor
+&#9;&#9;&#9;wait(0.13)
+&#9;&#9;&#9;if object then
+&#9;&#9;&#9;&#9;object.BrickColor = redColor
+&#9;&#9;&#9;end
+&#9;&#9;&#9;wait(0.13)
+&#9;&#9;end
+&#9;end)
+end
+
+local joystickWidth = 250
+local joystickHeight = 250
+local function IsInBottomLeft(pt)
+&#9;return pt.X &lt;= joystickWidth and pt.Y &gt; Utility.ViewSizeY() - joystickHeight
+end
+
+local function IsInBottomRight(pt)
+&#9;return pt.X &gt;= Utility.ViewSizeX() - joystickWidth and pt.Y &gt; Utility.ViewSizeY() - joystickHeight
+end
+
+local function CheckAlive(character)
+&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;return humanoid ~= nil and humanoid.Health &gt; 0
+end
+
+local function GetEquippedTool(character)
+&#9;if character ~= nil then
+&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;if child:IsA(&apos;Tool&apos;) then
+&#9;&#9;&#9;&#9;return child
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end&#9;
+end
+
+local function ExploreWithRayCast(currentPoint, originDirection)
+&#9;local TestDistance = 40
+&#9;local TestVectors = {}
+&#9;do
+&#9;&#9;local forwardVector = originDirection;
+&#9;&#9;for i = 0, 15 do
+&#9;&#9;&#9;table.insert(TestVectors, CFrame.Angles(0, math.pi / 8 * i, 0) * forwardVector)
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;local testResults = {}
+&#9;-- Heuristic should be something along the lines of distance and closeness to the traveling direction
+&#9;local function ExploreHeuristic()
+&#9;&#9;for _, testData in pairs(testResults) do
+&#9;&#9;&#9;local walkDirection = -1 * originDirection
+&#9;&#9;&#9;local directionCoeff = (walkDirection:Dot(testData[&apos;Vector&apos;]) + 1) / 2
+&#9;&#9;&#9;local distanceCoeff = testData[&apos;Distance&apos;] / TestDistance
+&#9;&#9;&#9;testData[&quot;Value&quot;] = directionCoeff * distanceCoeff
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;for i, vec in pairs(TestVectors) do
+&#9;&#9;local hitPart, hitPos = Utility.Raycast(Ray.new(currentPoint, vec * TestDistance), true, {Player.Character})
+&#9;&#9;if hitPos then
+&#9;&#9;&#9;table.insert(testResults, {Vector = vec; Distance = (hitPos - currentPoint).magnitude})
+&#9;&#9;else
+&#9;&#9;&#9;table.insert(testResults, {Vector = vec; Distance = TestDistance})
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;ExploreHeuristic()
+&#9;
+&#9;table.sort(testResults, function(a,b) return a[&quot;Value&quot;] &gt; b[&quot;Value&quot;] end)
+&#9;
+&#9;return testResults&#9;
+end
+
+local TapId = 1
+local ExistingPather = nil
+local ExistingIndicator = nil
+local PathCompleteListener = nil
+local PathFailedListener = nil
+
+local function CleanupPath()
+&#9;if ExistingPather then
+&#9;&#9;ExistingPather:Cancel()
+&#9;end
+&#9;if PathCompleteListener then
+&#9;&#9;PathCompleteListener:disconnect()
+&#9;&#9;PathCompleteListener = nil
+&#9;end
+&#9;if PathFailedListener then
+&#9;&#9;PathFailedListener:disconnect()
+&#9;&#9;PathFailedListener = nil
+&#9;end
+&#9;if ExistingIndicator then
+&#9;&#9;DebrisService:AddItem(ExistingIndicator, 0)
+&#9;&#9;ExistingIndicator = nil
+&#9;end&#9;
+end
+
+
+local AutoJumperInstance = nil
+local ShootCount = 0
+local FailCount = 0
+local function OnTap(tapPositions)&#9;
+&#9;-- Good to remember if this is the latest tap event
+&#9;TapId = TapId + 1
+&#9;local thisTapId = TapId
+&#9;
+&#9;
+&#9;local camera = workspace.CurrentCamera
+&#9;local character = Player.Character
+
+&#9;
+&#9;if not CheckAlive(character) then return end
+&#9;
+&#9;-- This is a path tap position
+&#9;if #tapPositions == 1 then
+&#9;&#9;-- Filter out inputs that are by the sticks.
+&#9;&#9;if UIS.TouchEnabled == true and UIS.ModalEnabled == false and (IsInBottomRight(tapPositions[1]) or IsInBottomLeft(tapPositions[1])) then return end
+&#9;&#9;if camera then
+&#9;&#9;&#9;local unitRay = Utility.GetUnitRay(tapPositions[1].x, tapPositions[1].y, MyMouse.ViewSizeX, MyMouse.ViewSizeY, camera)
+&#9;&#9;&#9;local ray = Ray.new(unitRay.Origin, unitRay.Direction*400)
+&#9;&#9;&#9;local hitPart, hitPt = Utility.Raycast(ray, true, {character})
+&#9;&#9;&#9;
+&#9;&#9;&#9;local hitChar, hitHumanoid = Utility.FindChacterAncestor(hitPart)
+&#9;&#9;&#9;local torso = character and character:FindFirstChild(&quot;Humanoid&quot;) and character:FindFirstChild(&quot;Humanoid&quot;).Torso
+&#9;&#9;&#9;local startPos = torso.CFrame.p
+&#9;&#9;&#9;if hitChar and hitHumanoid and hitHumanoid.Torso and (hitHumanoid.Torso.CFrame.p - torso.CFrame.p).magnitude &lt; 7 then
+&#9;&#9;&#9;&#9;CleanupPath()
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;local myHumanoid = findPlayerHumanoid(Player)
+&#9;&#9;&#9;&#9;if myHumanoid then
+&#9;&#9;&#9;&#9;&#9;myHumanoid:MoveTo(hitPt)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;ShootCount = ShootCount + 1
+&#9;&#9;&#9;&#9;local thisShoot = ShootCount
+&#9;&#9;&#9;&#9;-- Do shooot
+&#9;&#9;&#9;&#9;local currentWeapon = GetEquippedTool(character)
+&#9;&#9;&#9;&#9;if currentWeapon then
+&#9;&#9;&#9;&#9;&#9;currentWeapon:Activate()
+&#9;&#9;&#9;&#9;&#9;LastFired = tick()
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;elseif hitPt and character then
+&#9;&#9;&#9;&#9;local thisPather = Pather(character, hitPt)
+&#9;&#9;&#9;&#9;if thisPather:IsValidPath() then
+&#9;&#9;&#9;&#9;&#9;FailCount = 0
+&#9;&#9;&#9;&#9;&#9;-- TODO: Remove when bug in engine is fixed
+&#9;&#9;&#9;&#9;&#9;Player:Move(Vector3.new(1, 0, 0))
+&#9;&#9;&#9;&#9;&#9;Player:Move(Vector3.new(0, 0, 0))
+&#9;&#9;&#9;&#9;&#9;thisPather:Start()
+&#9;&#9;&#9;&#9;&#9;if BindableEvent_OnFailStateChanged then
+&#9;&#9;&#9;&#9;&#9;&#9;BindableEvent_OnFailStateChanged:Fire(false)
+&#9;&#9;&#9;&#9;&#9;end
+--&#9;&#9;&#9;&#9;&#9;if CameraModule then
+--&#9;&#9;&#9;&#9;&#9;&#9;CameraModule:Start()
+--&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;CleanupPath()
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;local destinationGlobe = CreateDestinationIndicator(hitPt)
+&#9;&#9;&#9;&#9;&#9;destinationGlobe.Parent = camera
+&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;ExistingPather = thisPather
+&#9;&#9;&#9;&#9;&#9;ExistingIndicator = destinationGlobe
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;&#9;&#9;AutoJumperInstance:Run()
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;PathCompleteListener = thisPather.Finished:connect(function()
+&#9;&#9;&#9;&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;AutoJumperInstance:Stop()
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;if destinationGlobe then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if ExistingIndicator == destinationGlobe then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;ExistingIndicator = nil
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;DebrisService:AddItem(destinationGlobe, 0)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;destinationGlobe = nil
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;if hitChar then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local humanoid = findPlayerHumanoid(Player)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;ShootCount = ShootCount + 1
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local thisShoot = ShootCount
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;-- Do shoot
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local currentWeapon = GetEquippedTool(character)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if currentWeapon then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;currentWeapon:Activate()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;LastFired = tick()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if humanoid then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;humanoid:MoveTo(hitPt)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;local finishPos = torso and torso.CFrame.p --hitPt
+&#9;&#9;&#9;&#9;&#9;&#9;if finishPos and startPos and tick() - Utility.GetLastInput() &gt; 2 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local exploreResults = ExploreWithRayCast(finishPos, ((startPos - finishPos) * Vector3.new(1,0,1)).unit)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;-- Check for Nans etc..
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if exploreResults[1] and exploreResults[1][&quot;Vector&quot;] and exploreResults[1][&quot;Vector&quot;].magnitude &gt;= 0.5 and exploreResults[1][&quot;Distance&quot;] &gt; 3 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if CameraModule then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local rotatedCFrame = CameraModule:LookAtPreserveHeight(finishPos + exploreResults[1][&quot;Vector&quot;] * exploreResults[1][&quot;Distance&quot;])
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;local finishedSignal, duration = CameraModule:TweenCameraLook(rotatedCFrame)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;&#9;PathFailedListener = thisPather.PathFailed:connect(function()
+&#9;&#9;&#9;&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;AutoJumperInstance:Stop()
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;if destinationGlobe then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;FlashRed(destinationGlobe)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;DebrisService:AddItem(destinationGlobe, 3)
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;if hitPt then
+&#9;&#9;&#9;&#9;&#9;&#9;-- Feedback here for when we don&apos;t have a good path
+&#9;&#9;&#9;&#9;&#9;&#9;local failedGlobe = CreateDestinationIndicator(hitPt)
+&#9;&#9;&#9;&#9;&#9;&#9;FlashRed(failedGlobe)
+&#9;&#9;&#9;&#9;&#9;&#9;DebrisService:AddItem(failedGlobe, 1)
+&#9;&#9;&#9;&#9;&#9;&#9;failedGlobe.Parent = camera
+&#9;&#9;&#9;&#9;&#9;&#9;if ExistingIndicator == nil then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;FailCount = FailCount + 1
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;if FailCount &gt;= 3 then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if BindableEvent_OnFailStateChanged then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;BindableEvent_OnFailStateChanged:Fire(true)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+--&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;if CameraModule then
+--&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;CameraModule:Stop()
+--&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;&#9;CleanupPath()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;-- no hit pt
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;elseif #tapPositions &gt;= 2 then
+&#9;&#9;if camera then
+&#9;&#9;&#9;ShootCount = ShootCount + 1
+&#9;&#9;&#9;local thisShoot = ShootCount
+&#9;&#9;&#9;-- Do shoot
+&#9;&#9;&#9;local avgPoint = Utility.AveragePoints(tapPositions)
+&#9;&#9;&#9;local unitRay = Utility.GetUnitRay(avgPoint.x, avgPoint.y, MyMouse.ViewSizeX, MyMouse.ViewSizeY, camera)
+&#9;&#9;&#9;local currentWeapon = GetEquippedTool(character)
+&#9;&#9;&#9;if currentWeapon then
+&#9;&#9;&#9;&#9;currentWeapon:Activate()
+&#9;&#9;&#9;&#9;LastFired = tick()
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local function SetUpGestureRecognizers()
+&#9;local MAX_FINGERS = 11
+&#9;local InputHistory = {}
+&#9;
+&#9;local function FindInputObject(inputObject)
+&#9;&#9;for i = 1, #InputHistory do
+&#9;&#9;&#9;if InputHistory[i] == inputObject then
+&#9;&#9;&#9;&#9;return InputHistory[i], i
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;local function PopInput(inputObject)
+&#9;&#9;local _, i = FindInputObject(inputObject)
+&#9;&#9;if i then
+&#9;&#9;&#9;table.remove(InputHistory, i)
+&#9;&#9;&#9;return true
+&#9;&#9;end
+&#9;&#9;return false
+&#9;end
+&#9;
+&#9;local function PushInput(inputObject)
+&#9;&#9;-- Make sure it isn&apos;t in the list already
+&#9;&#9;if FindInputObject(inputObject) then return false end
+&#9;&#9;
+&#9;&#9;if #InputHistory &gt;= MAX_FINGERS then
+&#9;&#9;&#9;-- Pop old dead inputs when we maxxed out
+&#9;&#9;&#9;for i = 1, #InputHistory do
+&#9;&#9;&#9;&#9;if InputHistory[i].UserInputState == Enum.UserInputState.End then
+&#9;&#9;&#9;&#9;&#9;table.remove(InputHistory, i)
+&#9;&#9;&#9;&#9;&#9;break
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;if #InputHistory &gt;= MAX_FINGERS then
+&#9;&#9;&#9;print(&quot;No more room for input; failing to add input&quot;)
+&#9;&#9;&#9;for i = 1, #InputHistory do
+&#9;&#9;&#9;&#9;print(tostring(i) .. &quot;:&quot; .. tostring(inputObject.UserInputState))
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;return false
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;
+&#9;&#9;local startPos = Instance.new(&quot;Vector3Value&quot;)
+&#9;&#9;startPos.Value = inputObject.Position -- Vector3.new(inputObject.Position.X, inputObject.Position.Y, 0)
+&#9;&#9;startPos.Name = &quot;StartPos&quot; -- Have to use Vector3value because there is no vector2 value
+&#9;&#9;startPos.Parent = inputObject
+&#9;&#9;
+&#9;&#9;local startTime = Instance.new(&quot;NumberValue&quot;)
+&#9;&#9;startTime.Value = tick()
+&#9;&#9;startTime.Name = &quot;StartTime&quot;
+&#9;&#9;startTime.Parent = inputObject
+&#9;&#9;
+&#9;&#9;
+&#9;&#9;table.insert(InputHistory, inputObject)
+&#9;&#9;return true
+&#9;end
+&#9;
+&#9;
+&#9;UIS.InputBegan:connect(function(inputObject)
+&#9;&#9;if inputObject.UserInputType == Enum.UserInputType.Touch then
+&#9;&#9;&#9;PushInput(inputObject)
+&#9;&#9;&#9;
+&#9;&#9;&#9;local wasInBottomLeft = IsInBottomLeft(inputObject.Position)
+&#9;&#9;&#9;local wasInBottomRight = IsInBottomRight(inputObject.Position)
+&#9;&#9;&#9;if wasInBottomRight or wasInBottomLeft then
+&#9;&#9;&#9;&#9;for i, otherInput in pairs(InputHistory) do
+&#9;&#9;&#9;&#9;&#9;local otherInputInLeft = IsInBottomLeft(otherInput.Position)
+&#9;&#9;&#9;&#9;&#9;local otherInputInRight = IsInBottomRight(otherInput.Position)
+&#9;&#9;&#9;&#9;&#9;if otherInput.UserInputState ~= Enum.UserInputState.End and ((wasInBottomLeft and otherInputInRight) or (wasInBottomRight and otherInputInLeft)) then
+&#9;&#9;&#9;&#9;&#9;&#9;-- TODO: Is this still a valid code path?
+&#9;&#9;&#9;&#9;&#9;&#9;UIS.ModalEnabled = false
+--&#9;&#9;&#9;&#9;&#9;&#9;if CameraModule then
+--&#9;&#9;&#9;&#9;&#9;&#9;&#9;CameraModule:Stop()
+--&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end)
+&#9;
+&#9;UIS.InputEnded:connect(function(inputObject)
+&#9;&#9;if inputObject.UserInputType ~= Enum.UserInputType.Touch then
+&#9;&#9;&#9;return
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;do
+&#9;&#9;&#9;local lookedUpObject = FindInputObject(inputObject)
+&#9;&#9;&#9;
+&#9;&#9;&#9;local endTime = Instance.new(&quot;NumberValue&quot;)
+&#9;&#9;&#9;endTime.Value = tick()
+&#9;&#9;&#9;endTime.Name = &quot;EndTime&quot;
+&#9;&#9;&#9;endTime.Parent = lookedUpObject
+&#9;&#9;end
+&#9;end)
+end
+
+
+local function CreateClickToMoveModule()
+&#9;local this = {}
+&#9;
+&#9;local LastStateChange = 0
+&#9;local LastState = Enum.HumanoidStateType.Running
+&#9;local LastMouseUpTime = 0
+&#9;
+&#9;local TapConn = nil
+&#9;local MouseUpConn = nil
+&#9;local MouseDownConn = nil
+&#9;local MouseButton2DownConn = nil
+&#9;local RotateConn = nil
+&#9;local MouseWheelBackwardConn = nil
+&#9;local MouseWheelForwardConn = nil
+&#9;local HumanoidDiedConn = nil
+&#9;local CharacterChildAddedConn = nil
+&#9;local KeyboardInputBeganConn = nil
+&#9;local OnCharacterAddedConn = nil
+&#9;local RenderSteppedConn = nil
+&#9;
+&#9;local function disconnectEvent(event)
+&#9;&#9;if event then
+&#9;&#9;&#9;event:disconnect()
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;local function DisconnectEvents()
+&#9;&#9;disconnectEvent(TapConn)
+&#9;&#9;disconnectEvent(MouseUpConn)
+&#9;&#9;disconnectEvent(MouseDownConn)
+&#9;&#9;disconnectEvent(MouseButton2DownConn)
+&#9;&#9;disconnectEvent(MouseWheelForwardConn)
+&#9;&#9;disconnectEvent(MouseWheelBackwardConn)
+&#9;&#9;disconnectEvent(RotateConn)
+&#9;&#9;disconnectEvent(HumanoidDiedConn)
+&#9;&#9;disconnectEvent(CharacterChildAddedConn)
+&#9;&#9;disconnectEvent(KeyboardInputBeganConn)
+&#9;&#9;disconnectEvent(OnCharacterAddedConn)
+&#9;&#9;disconnectEvent(RenderSteppedConn)
+&#9;end
+&#9;
+&#9;
+&#9;-- Setup the camera
+&#9;CameraModule = ClassicCameraModule()
+&#9;
+&#9;do
+&#9;&#9;-- Extend The Camera Module Class
+&#9;&#9;function CameraModule:LookAtPreserveHeight(newLookAtPt)
+&#9;&#9;&#9;local camera = &#9;workspace.CurrentCamera
+&#9;&#9;&#9;
+&#9;&#9;&#9;local focus = camera.Focus.p
+&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;local cameraCFrame = camera.CoordinateFrame
+&#9;&#9;&#9;local mag = Vector3.new(cameraCFrame.lookVector.x, 0, cameraCFrame.lookVector.z).magnitude
+&#9;&#9;&#9;local newLook = (Vector3.new(newLookAtPt.x, focus.y, newLookAtPt.z) - focus).unit * mag
+&#9;&#9;&#9;local flippedLook = newLook + Vector3.new(0, cameraCFrame.lookVector.y, 0)
+&#9;&#9;&#9;
+&#9;&#9;&#9;local distance = (focus - camera.CoordinateFrame.p).magnitude
+&#9;&#9;&#9;
+&#9;&#9;&#9;local newCamPos = focus - flippedLook.unit * distance
+&#9;&#9;&#9;return CFrame.new(newCamPos, newCamPos + flippedLook)
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;function CameraModule:TweenCameraLook(desiredCFrame, speed)
+&#9;&#9;&#9;local e = 2.718281828459
+&#9;&#9;&#9;local function SCurve(t)
+&#9;&#9;&#9;&#9;return 1/(1 + e^(-t*1.5))
+&#9;&#9;&#9;end
+&#9;&#9;&#9;local function easeOutSine(t, b, c, d)
+&#9;&#9;&#9;&#9;if t &gt;= d then return b + c end
+&#9;&#9;&#9;&#9;return c * math.sin(t/d * (math.pi/2)) + b;
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;local theta, interper = CFrameInterpolator(CFrame.new(Vector3.new(), self:GetCameraLook()), desiredCFrame - desiredCFrame.p)
+&#9;&#9;&#9;theta = Utility.Clamp(0, math.pi, theta)
+&#9;&#9;&#9;local duration = 0.65 * SCurve(theta - math.pi/4) + 0.15
+&#9;&#9;&#9;if speed then
+&#9;&#9;&#9;&#9;duration = theta / speed
+&#9;&#9;&#9;end
+&#9;&#9;&#9;local start = tick()
+&#9;&#9;&#9;local finish = start + duration
+&#9;&#9;
+&#9;&#9;&#9;self.UpdateTweenFunction = function()
+&#9;&#9;&#9;&#9;local currTime = tick() - start
+&#9;&#9;&#9;&#9;local alpha = Utility.Clamp(0, 1, easeOutSine(currTime, 0, 1, duration))
+&#9;&#9;&#9;&#9;local newCFrame = interper(alpha)
+&#9;&#9;&#9;&#9;self.cameraLook = newCFrame.lookVector
+&#9;&#9;&#9;&#9;return (currTime &gt;= finish or alpha &gt;= 1)
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+&#9;--- Done Extending
+
+&#9;local function OnCharacterAdded(character)
+&#9;&#9;DisconnectEvents()
+&#9;&#9;
+&#9;&#9;
+&#9;&#9;if UIS.TouchEnabled then -- Mobile&#9;
+&#9;&#9;&#9;SetUpGestureRecognizers()
+&#9;&#9;&#9;
+&#9;&#9;&#9;TapConn = UIS.TouchTap:connect(function(touchPositions, sunk)&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;if not sunk then
+&#9;&#9;&#9;&#9;&#9;OnTap(touchPositions)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;
+&#9;&#9;&#9;MouseUpConn = MyMouse.Button1Up:connect(function()
+&#9;&#9;&#9;&#9;LastMouseUpTime = tick()
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;
+&#9;&#9;&#9;local function OnCharacterChildAdded(child)
+&#9;&#9;&#9;&#9;if child:IsA(&apos;Tool&apos;) then
+&#9;&#9;&#9;&#9;&#9;child.ManualActivationOnly = true
+&#9;&#9;&#9;&#9;elseif child:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;&#9;disconnectEvent(HumanoidDiedConn)
+&#9;&#9;&#9;&#9;&#9;HumanoidDiedConn = child.Died:connect(function()
+&#9;&#9;&#9;&#9;&#9;&#9;DebrisService:AddItem(ExistingIndicator, 1)&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;AutoJumperInstance:Stop()
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;AutoJumperInstance = nil
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;CharacterChildAddedConn = character.ChildAdded:connect(function(child)
+&#9;&#9;&#9;&#9;OnCharacterChildAdded(child)
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;&#9;OnCharacterChildAdded(child)
+&#9;&#9;&#9;end
+&#9;&#9;else -- PC
+&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;AutoJumperInstance:Stop()
+&#9;&#9;&#9;&#9;AutoJumperInstance = nil
+&#9;&#9;&#9;end
+&#9;&#9;&#9;AutoJumperInstance = AutoJumper()
+&#9;&#9;&#9;-- PC simulation
+&#9;&#9;&#9;local mouse1Down = tick()
+&#9;&#9;&#9;local mouse1DownPos = Vector2.new()
+&#9;&#9;&#9;local mouse1Up = tick()
+&#9;&#9;&#9;local mouse2Down = tick()
+&#9;&#9;&#9;local mouse2DownPos = Vector2.new()
+&#9;&#9;&#9;local mouse2Up = tick()
+&#9;&#9;&#9;
+&#9;&#9;&#9;local movementKeys = {
+&#9;&#9;&#9;&#9;[Enum.KeyCode.W] = true;
+&#9;&#9;&#9;&#9;[Enum.KeyCode.A] = true;
+&#9;&#9;&#9;&#9;[Enum.KeyCode.S] = true;
+&#9;&#9;&#9;&#9;[Enum.KeyCode.D] = true;
+&#9;&#9;&#9;&#9;[Enum.KeyCode.Up] = true;
+&#9;&#9;&#9;&#9;[Enum.KeyCode.Down] = true;
+&#9;&#9;&#9;}
+&#9;&#9;&#9;
+&#9;&#9;&#9;KeyboardInputBeganConn = UIS.InputBegan:connect(function(inputObject, processed)
+&#9;&#9;&#9;&#9;if processed then return end
+&#9;&#9;&#9;&#9;if inputObject.UserInputType == Enum.UserInputType.Keyboard and movementKeys[inputObject.KeyCode] then
+&#9;&#9;&#9;&#9;&#9; CleanupPath() -- Cancel path when you use the keyboard controls.
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;
+&#9;&#9;&#9;MouseDownConn = MyMouse.Button1Down:connect(function()
+&#9;&#9;&#9;&#9;mouse1Down = tick()
+&#9;&#9;&#9;&#9;mouse1DownPos = Vector2.new(MyMouse.X, MyMouse.Y)
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;MouseButton2DownConn = MyMouse.Button2Down:connect(function()
+&#9;&#9;&#9;&#9;mouse2Down = tick()
+&#9;&#9;&#9;&#9;mouse2DownPos = Vector2.new(MyMouse.X, MyMouse.Y)
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;MouseUpConn = MyMouse.Button2Up:connect(function()
+&#9;&#9;&#9;&#9;mouse2Up = tick()&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;local currPos = Vector2.new(MyMouse.X, MyMouse.Y)
+&#9;&#9;&#9;&#9;if mouse2Up - mouse2Down &lt; 0.25 and (currPos - mouse2DownPos).magnitude &lt; 5 then
+&#9;&#9;&#9;&#9;&#9;local positions = {currPos}
+&#9;&#9;&#9;&#9;&#9;OnTap(positions)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;MouseWheelBackwardConn = MyMouse.WheelBackward:connect(function()
+&#9;&#9;&#9;&#9;Player.CameraMode = Enum.CameraMode.Classic
+&#9;&#9;&#9;end)
+&#9;&#9;&#9;MouseWheelForwardConn = MyMouse.WheelForward:connect(function()
+&#9;&#9;&#9;&#9;if (workspace.CurrentCamera.CoordinateFrame.p - workspace.CurrentCamera.Focus.p).magnitude &lt; 0.8 then
+&#9;&#9;&#9;&#9;&#9;Player.CameraMode = Enum.CameraMode.LockFirstPerson
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end)
+&#9;&#9;end
+&#9;&#9;RenderSteppedConn = RunService.RenderStepped:connect(function()
+&#9;&#9;&#9;if CameraModule then
+&#9;&#9;&#9;&#9;if CameraModule.UserPanningTheCamera then
+&#9;&#9;&#9;&#9;&#9;CameraModule.UpdateTweenFunction = nil
+&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;if CameraModule.UpdateTweenFunction then
+&#9;&#9;&#9;&#9;&#9;&#9;local done = CameraModule.UpdateTweenFunction()
+&#9;&#9;&#9;&#9;&#9;&#9;if done then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;CameraModule.UpdateTweenFunction = nil
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;CameraModule:Update()
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;end
+&#9;
+&#9;local Running = false
+&#9;
+&#9;function this:Stop()
+&#9;&#9;if Running then
+&#9;&#9;&#9;DisconnectEvents()
+&#9;&#9;&#9;CleanupPath()
+&#9;&#9;&#9;if AutoJumperInstance then
+&#9;&#9;&#9;&#9;AutoJumperInstance:Stop()
+&#9;&#9;&#9;&#9;AutoJumperInstance = nil
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if CameraModule then
+&#9;&#9;&#9;&#9;CameraModule.UpdateTweenFunction = nil
+&#9;&#9;&#9;end
+&#9;&#9;&#9;Running = false
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;function this:Start()
+&#9;&#9;if not Running then
+&#9;&#9;&#9;if Player.Character then -- retro-listen
+&#9;&#9;&#9;&#9;OnCharacterAdded(Player.Character)
+&#9;&#9;&#9;end
+&#9;&#9;&#9;OnCharacterAddedConn = Player.CharacterAdded:connect(OnCharacterAdded)
+&#9;&#9;&#9;Running = true
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;return this
+end
+
+return CreateClickToMoveModule
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBXE641B80103E7430C9C0F793537702C63">
+			<Properties>
+				<string name="Name">Invisicam</string>
+				<ProtectedString name="Source">-- Invisicam Version 2.5 (Occlusion Series)
+-- For the latest standalone version see id=183837794
+-- OnlyTwentyCharacters
+
+local Invisicam = {}
+
+---------------
+-- Constants --
+---------------
+
+local FADE_TARGET = 0.75
+local FADE_RATE = 0.1
+
+local MODE = {
+&#9;CUSTOM = 1, -- Whatever you want!
+&#9;LIMBS = 2, -- Track limbs
+&#9;MOVEMENT = 3, -- Track movement
+&#9;CORNERS = 4, -- Char model corners
+&#9;CIRCLE1 = 5, -- Circle of casts around character
+&#9;CIRCLE2 = 6, -- Circle of casts around character, camera relative
+&#9;LIMBMOVE = 7, -- LIMBS mode + MOVEMENT mode
+}
+Invisicam.MODE = MODE
+
+local STARTING_MODE = MODE.LIMBS
+
+local LIMB_TRACKING_SET = {
+&#9;[&apos;Head&apos;] = true,
+&#9;[&apos;Left Arm&apos;] = true,
+&#9;[&apos;Right Arm&apos;] = true,
+&#9;[&apos;Left Leg&apos;] = true,
+&#9;[&apos;Right Leg&apos;] = true,
+}
+local CORNER_FACTORS = {
+&#9;Vector3.new(1, 1, -1),
+&#9;Vector3.new(1, -1, -1),
+&#9;Vector3.new(-1, -1, -1),
+&#9;Vector3.new(-1, 1, -1)
+}
+local CIRCLE_CASTS = 10
+local MOVE_CASTS = 3
+
+---------------
+-- Variables --
+---------------
+
+local RunService = game:GetService(&apos;RunService&apos;)
+local PlayersService = game:GetService(&apos;Players&apos;)
+local Player = PlayersService.LocalPlayer
+
+local Camera = nil
+local Character = nil
+local Torso = nil
+
+local Mode = nil
+local Behaviors = {} -- Map of modes to behavior fns
+local SavedHits = {} -- Objects currently being faded in/out
+local TrackedLimbs = {} -- Used in limb-tracking casting modes
+
+---------------
+--| Utility |--
+---------------
+
+local function AssertTypes(param, ...)
+&#9;local allowedTypes = {}
+&#9;local typeString = &apos;&apos;
+&#9;for _, typeName in pairs({...}) do
+&#9;&#9;allowedTypes[typeName] = true
+&#9;&#9;typeString = typeString .. (typeString == &apos;&apos; and &apos;&apos; or &apos; or &apos;) .. typeName
+&#9;end
+&#9;local theType = type(param)
+&#9;assert(allowedTypes[theType], typeString .. &quot; type expected, got: &quot; .. theType)
+end
+
+local function CameraCast(worldPoint, ignoreList)
+&#9;local cameraPoint = Camera.CoordinateFrame.p
+&#9;local vector = worldPoint - cameraPoint
+&#9;local ray = Ray.new(cameraPoint, vector.Unit * math.min(vector.Magnitude, 999))
+&#9;return workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+end
+
+-----------------------
+--| Local Functions |--
+-----------------------
+
+local function LimbBehavior(castPoints)
+&#9;for _, limb in pairs(TrackedLimbs) do
+&#9;&#9;if limb.Parent then
+&#9;&#9;&#9;table.insert(castPoints, limb.Position)
+&#9;&#9;end
+&#9;end
+end
+
+local function MoveBehavior(castPoints)
+&#9;for i = 1, MOVE_CASTS do
+&#9;&#9;local position, velocity = Torso.Position, Torso.Velocity
+&#9;&#9;local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude / 2
+&#9;&#9;local offsetVector = (i - 1) * Torso.CFrame.lookVector * horizontalSpeed
+&#9;&#9;table.insert(castPoints, position + offsetVector)
+&#9;end
+end
+
+local function CornerBehavior(castPoints)
+&#9;local cframe = Torso.CFrame
+&#9;local centerPoint = cframe.p
+&#9;local rotation = cframe - centerPoint
+&#9;local halfSize = Character:GetExtentsSize() / 2 --NOTE: Doesn&apos;t update w/ limb animations
+&#9;table.insert(castPoints, centerPoint)
+&#9;for _, factor in pairs(CORNER_FACTORS) do
+&#9;&#9;table.insert(castPoints, centerPoint + (rotation * (halfSize * factor)))
+&#9;end
+end
+
+local function CircleBehavior(castPoints)
+&#9;local cframe = nil
+&#9;if Mode == MODE.CIRCLE1 then
+&#9;&#9;cframe = Torso.CFrame
+&#9;else
+&#9;&#9;local camCFrame = Camera.CoordinateFrame
+&#9;&#9;cframe = camCFrame - camCFrame.p + Torso.Position
+&#9;end
+&#9;table.insert(castPoints, cframe.p)
+&#9;for i = 0, CIRCLE_CASTS - 1 do
+&#9;&#9;local angle = (2 * math.pi / CIRCLE_CASTS) * i
+&#9;&#9;local offset = 3 * Vector3.new(math.cos(angle), math.sin(angle), 0)
+&#9;&#9;table.insert(castPoints, cframe * offset)
+&#9;end
+end
+
+local function LimbMoveBehavior(castPoints)
+&#9;LimbBehavior(castPoints)
+&#9;MoveBehavior(castPoints)
+end
+
+local function OnCharacterAdded(character)
+&#9;Character = character
+&#9;Torso = Character:WaitForChild(&apos;Torso&apos;)
+&#9;
+&#9;TrackedLimbs = {}
+&#9;for _, child in pairs(Character:GetChildren()) do
+&#9;&#9;if child:IsA(&apos;BasePart&apos;) and LIMB_TRACKING_SET[child.Name] then
+&#9;&#9;&#9;table.insert(TrackedLimbs, child)
+&#9;&#9;end
+&#9;end
+end
+
+local function OnWorkspaceChanged(property)
+&#9;if property == &apos;CurrentCamera&apos; then
+&#9;&#9;local newCamera = workspace.CurrentCamera
+&#9;&#9;if newCamera then
+&#9;&#9;&#9;Camera = newCamera
+&#9;&#9;end
+&#9;end
+end
+
+-----------------------
+-- Exposed Functions --
+-----------------------
+
+-- Update. Called every frame after the camera movement step
+function Invisicam:Update()
+&#9;-- Make a list of world points to raycast to
+&#9;local castPoints = {}
+&#9;Behaviors[Mode](castPoints)
+&#9;
+&#9;-- Cast to get a list of objects between the camera and the cast points
+&#9;local currentHits = {}
+&#9;local ignoreList = {Character}
+&#9;local function add(hit)
+&#9;&#9;currentHits[hit] = true
+&#9;&#9;if not SavedHits[hit] then
+&#9;&#9;&#9;SavedHits[hit] = hit.LocalTransparencyModifier
+&#9;&#9;end
+&#9;end
+&#9;for _, worldPoint in pairs(castPoints) do
+&#9;&#9;repeat
+&#9;&#9;&#9;local hitPart = CameraCast(worldPoint, ignoreList)
+&#9;&#9;&#9;if hitPart then
+&#9;&#9;&#9;&#9;add(hitPart)
+&#9;&#9;&#9;&#9;for _, child in pairs(hitPart:GetChildren()) do
+&#9;&#9;&#9;&#9;&#9;if child:IsA(&apos;Decal&apos;) or child:IsA(&apos;Texture&apos;) then
+&#9;&#9;&#9;&#9;&#9;&#9;add(child)
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;table.insert(ignoreList, hitPart) -- Next ray will go through this part
+&#9;&#9;&#9;end
+&#9;&#9;until not hitPart
+&#9;end
+&#9;
+&#9;-- Fade out objects that are in the way, restore those that aren&apos;t anymore
+&#9;for hit, originalFade in pairs(SavedHits) do
+&#9;&#9;local currentFade = hit.LocalTransparencyModifier
+&#9;&#9;if currentHits[hit] then -- Fade
+&#9;&#9;&#9;if currentFade &lt; FADE_TARGET then
+&#9;&#9;&#9;&#9;hit.LocalTransparencyModifier = math.min(currentFade + FADE_RATE, FADE_TARGET)
+&#9;&#9;&#9;end
+&#9;&#9;else -- Restore
+&#9;&#9;&#9;if currentFade &gt; originalFade then
+&#9;&#9;&#9;&#9;hit.LocalTransparencyModifier = math.max(originalFade, currentFade - FADE_RATE)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;SavedHits[hit] = nil
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+function Invisicam:SetMode(newMode)
+&#9;AssertTypes(newMode, &apos;number&apos;)
+&#9;for modeName, modeNum in pairs(MODE) do
+&#9;&#9;if modeNum == newMode then
+&#9;&#9;&#9;Mode = newMode
+&#9;&#9;&#9;return
+&#9;&#9;end
+&#9;end
+&#9;error(&quot;Invalid mode number&quot;)
+end
+
+function Invisicam:SetCustomBehavior(func)
+&#9;AssertTypes(func, &apos;function&apos;)
+&#9;Behaviors[MODE.CUSTOM] = func
+end
+
+-- Want to turn off Invisicam? Be sure to call this after.
+function Invisicam:Cleanup()
+&#9;for hit, originalFade in pairs(SavedHits) do
+&#9;&#9;hit.LocalTransparencyModifier = originalFade
+&#9;end
+end
+
+---------------------
+--| Running Logic |--
+---------------------
+
+-- Connect to the current and all future cameras
+workspace.Changed:connect(OnWorkspaceChanged)
+OnWorkspaceChanged(&apos;CurrentCamera&apos;)
+
+Player.CharacterAdded:connect(OnCharacterAdded)
+if Player.Character then
+&#9;OnCharacterAdded(Player.Character)
+end
+
+Invisicam:SetMode(STARTING_MODE)
+
+Behaviors[MODE.CUSTOM] = function() end -- (Does nothing until SetCustomBehavior)
+Behaviors[MODE.LIMBS] = LimbBehavior
+Behaviors[MODE.MOVEMENT] = MoveBehavior
+Behaviors[MODE.CORNERS] = CornerBehavior
+Behaviors[MODE.CIRCLE1] = CircleBehavior
+Behaviors[MODE.CIRCLE2] = CircleBehavior
+Behaviors[MODE.LIMBMOVE] = LimbMoveBehavior
+
+return Invisicam
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX905CF110249A46068288C08544C9FAEE">
+			<Properties>
+				<string name="Name">PopperCam</string>
+				<ProtectedString name="Source">-- PopperCam Version 12
+-- OnlyTwentyCharacters
+
+local PopperCam = {} -- Guarantees your players won&apos;t see outside the bounds of your map!
+
+---------------
+-- Constants --
+---------------
+
+local POP_RESTORE_RATE = 0.3
+local CAST_SCREEN_SCALES = { -- (Relative)
+&#9;Vector2.new(1, 1) / 2, -- Center
+&#9;Vector2.new(0, 0), -- Top left
+&#9;Vector2.new(1, 0), -- Top right
+&#9;Vector2.new(1, 1), -- Bottom right
+&#9;Vector2.new(0, 1), -- Bottom left
+}
+local NEAR_CLIP_PLANE_OFFSET = 0.5 --NOTE: Not configurable
+
+---------------
+-- Variables --
+---------------
+
+local PlayersService = game:GetService(&apos;Players&apos;)
+local Player = PlayersService.LocalPlayer
+local PlayerMouse = Player:GetMouse()
+
+local Camera = nil
+local CameraChangeConn = nil
+
+local PlayerCharacters = {} -- For ignoring in raycasts
+local VehicleParts = {} -- Also just for ignoring
+
+local LastPopAmount = 0
+local LastZoomLevel = 0
+
+---------------------
+-- Local Functions --
+---------------------
+
+local function CastRay(fromPoint, toPoint, ignoreList)
+&#9;local vector = toPoint - fromPoint
+&#9;local ray = Ray.new(fromPoint, vector.Unit * math.min(vector.Magnitude, 999))
+&#9;return workspace:FindPartOnRayWithIgnoreList(ray, ignoreList or {})
+end
+
+-- Casts and recasts until it hits either: nothing, or something not transparent or collidable
+local function PiercingCast(fromPoint, toPoint, ignoreList) --NOTE: Modifies ignoreList!
+&#9;repeat
+&#9;&#9;local hitPart, hitPoint = CastRay(fromPoint, toPoint, ignoreList)
+&#9;&#9;if hitPart and (hitPart.Transparency &gt; 0.95 or hitPart.CanCollide == false) then
+&#9;&#9;&#9;table.insert(ignoreList, hitPart)
+&#9;&#9;else
+&#9;&#9;&#9;return hitPart, hitPoint
+&#9;&#9;end
+&#9;until false
+end
+
+local function ScreenToWorld(screenPoint, screenSize, pushDepth)
+&#9;local cameraFOV, cameraCFrame = Camera.FieldOfView, Camera.CoordinateFrame
+&#9;local imagePlaneDepth = screenSize.y / (2 * math.tan(math.rad(cameraFOV) / 2))
+&#9;local direction = Vector3.new(screenPoint.x - (screenSize.x / 2), (screenSize.y / 2) - screenPoint.y, -imagePlaneDepth)
+&#9;local worldDirection = (cameraCFrame:vectorToWorldSpace(direction)).Unit
+&#9;local theta = math.acos(math.min(1, worldDirection:Dot(cameraCFrame.lookVector)))
+&#9;local fixedPushDepth = pushDepth / math.sin((math.pi / 2) - theta)
+&#9;return cameraCFrame.p + worldDirection * fixedPushDepth
+end
+
+local function OnCameraChanged(property)
+&#9;if property == &apos;CameraSubject&apos; then
+&#9;&#9;local newSubject = Camera.CameraSubject
+&#9;&#9;if newSubject and newSubject:IsA(&apos;VehicleSeat&apos;) then
+&#9;&#9;&#9;VehicleParts = newSubject:GetConnectedParts(true)
+&#9;&#9;else
+&#9;&#9;&#9;VehicleParts = {}
+&#9;&#9;end
+&#9;end
+end
+
+local function OnCharacterAdded(player, character)
+&#9;PlayerCharacters[player] = character
+end
+
+local function OnPlayersChildAdded(child)
+&#9;if child:IsA(&apos;Player&apos;) then
+&#9;&#9;child.CharacterAdded:connect(function(character)
+&#9;&#9;&#9;OnCharacterAdded(child, character)
+&#9;&#9;end)
+&#9;&#9;if child.Character then
+&#9;&#9;&#9;OnCharacterAdded(child, child.Character)
+&#9;&#9;end
+&#9;end
+end
+
+local function OnPlayersChildRemoved(child)
+&#9;if child:IsA(&apos;Player&apos;) then
+&#9;&#9;PlayerCharacters[child] = nil
+&#9;end
+end
+
+local function OnWorkspaceChanged(property)
+&#9;if property == &apos;CurrentCamera&apos; then
+&#9;&#9;local newCamera = workspace.CurrentCamera
+&#9;&#9;if newCamera then
+&#9;&#9;&#9;Camera = newCamera
+&#9;&#9;&#9;
+&#9;&#9;&#9;if CameraChangeConn then
+&#9;&#9;&#9;&#9;CameraChangeConn:disconnect()
+&#9;&#9;&#9;end
+&#9;&#9;&#9;CameraChangeConn = Camera.Changed:connect(OnCameraChanged)
+&#9;&#9;end
+&#9;end
+end
+
+-----------------------
+-- Exposed Functions --
+-----------------------
+
+function PopperCam:Update()
+&#9;-- First, prep some intermediate vars
+&#9;local focusPoint = Camera.Focus.p
+&#9;local cameraCFrame = Camera.CoordinateFrame
+&#9;local cameraFrontPoint = cameraCFrame.p + (cameraCFrame.lookVector * NEAR_CLIP_PLANE_OFFSET)
+&#9;local screenSize = Vector2.new(PlayerMouse.ViewSizeX, PlayerMouse.ViewSizeY)
+&#9;local ignoreList = {}
+&#9;for _, character in pairs(PlayerCharacters) do
+&#9;&#9;table.insert(ignoreList, character)
+&#9;end
+&#9;for _, basePart in pairs(VehicleParts) do
+&#9;&#9;table.insert(ignoreList, basePart)
+&#9;end
+&#9;
+&#9;-- Cast rays at the near clip plane, from corresponding points near the focus point,
+&#9;-- and find the direct line that is the most cut off
+&#9;local largest = 0
+&#9;for _, screenScale in pairs(CAST_SCREEN_SCALES) do
+&#9;&#9;local clipWorldPoint = ScreenToWorld(screenSize * screenScale, screenSize, NEAR_CLIP_PLANE_OFFSET)
+&#9;&#9;local rayStartPoint = focusPoint + (clipWorldPoint - cameraFrontPoint)
+&#9;&#9;local _, hitPoint = PiercingCast(rayStartPoint, clipWorldPoint, ignoreList)
+&#9;&#9;local cutoffAmount = (hitPoint - clipWorldPoint).Magnitude
+&#9;&#9;if cutoffAmount &gt; largest then
+&#9;&#9;&#9;largest = cutoffAmount
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;-- Then check if the user zoomed since the last frame,
+&#9;-- and if so, reset our pop history so we stop tweening
+&#9;local zoomLevel = (cameraCFrame.p - focusPoint).Magnitude
+&#9;if math.abs(zoomLevel - LastZoomLevel) &gt; 0.001 then
+&#9;&#9;LastPopAmount = 0
+&#9;end
+&#9;
+&#9;-- Finally, pop (zoom) the camera in by that most-cut-off amount, or the last pop amount if that&apos;s more
+&#9;local popAmount = math.max(largest, LastPopAmount)
+&#9;if popAmount &gt; 0 then
+&#9;&#9;Camera.CoordinateFrame = cameraCFrame + (cameraCFrame.lookVector * popAmount)
+&#9;&#9;LastPopAmount = math.max(popAmount - POP_RESTORE_RATE, 0) -- Shrink it for the next frame
+&#9;end
+&#9;
+&#9;LastZoomLevel = zoomLevel
+end
+
+------------------
+-- Script Logic --
+------------------
+
+-- Connect to the current and all future cameras
+workspace.Changed:connect(OnWorkspaceChanged)
+OnWorkspaceChanged(&apos;CurrentCamera&apos;)
+
+-- Connect to all Players so we can ignore their Characters
+PlayersService.ChildRemoved:connect(OnPlayersChildRemoved)
+PlayersService.ChildAdded:connect(OnPlayersChildAdded)
+for _, player in pairs(PlayersService:GetPlayers()) do
+&#9;OnPlayersChildAdded(player)
+end
+
+return PopperCam
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX68CB45FC61B74F50950AD8751B564495">
+			<Properties>
+				<string name="Name">RootCamera</string>
+				<ProtectedString name="Source">local UserInputService = game:GetService(&apos;UserInputService&apos;)
+local PlayersService = game:GetService(&apos;Players&apos;)
+
+local CameraScript = script.Parent
+local ShiftLockController = require(CameraScript:WaitForChild(&apos;ShiftLockController&apos;))
+
+local function clamp(low, high, num)
+&#9;if low &lt;= high then
+&#9;&#9;return math.min(high, math.max(low, num))
+&#9;end
+&#9;print(&quot;Trying to clamp when low:&quot;, low , &quot;is larger than high:&quot; , high , &quot;returning input value.&quot;)
+&#9;return num
+end
+
+local function findFirstChildByType(parent, type)
+&#9;for _, child in pairs(parent:GetChildren()) do
+&#9;&#9;if child.ClassName == type then -- :IsA
+&#9;&#9;&#9;return child
+&#9;&#9;end
+&#9;end
+end
+
+local humanoidCache = {}
+local function findPlayerHumanoid(player)
+&#9;local character = player and player.Character
+&#9;if character then
+&#9;&#9;local resultHumanoid = humanoidCache[player]
+&#9;&#9;if resultHumanoid and resultHumanoid.Parent == character then
+&#9;&#9;&#9;return resultHumanoid
+&#9;&#9;else
+&#9;&#9;&#9;humanoidCache[player] = nil -- Bust Old Cache
+&#9;&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;&#9;if child:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;&#9;humanoidCache[player] = child
+&#9;&#9;&#9;&#9;&#9;return child
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local MIN_Y = math.rad(-80)
+local MAX_Y = math.rad(80)
+
+local function CreateCamera()
+&#9;local this = {}
+&#9;
+&#9;this.ShiftLock = false
+&#9;local pinchZoomSpeed = 20
+&#9;local isFirstPerson = false
+
+&#9;function this:GetShiftLock()
+&#9;&#9;return ShiftLockController:IsShiftLocked()
+&#9;end
+&#9;
+&#9;function this:GetHumanoid()
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;return findPlayerHumanoid(player)
+&#9;end
+&#9;
+&#9;function this:GetHumanoidRootPart()
+&#9;&#9;local humanoid = this:GetHumanoid()
+&#9;&#9;return humanoid and humanoid.Torso
+&#9;end
+&#9;
+&#9;function this:GetSubjectPosition()
+&#9;&#9;local result = nil
+&#9;&#9;local humanoidRootPart = self:GetHumanoidRootPart()
+&#9;&#9;local humanoid = self:GetHumanoid()
+&#9;&#9;if humanoidRootPart then
+&#9;&#9;&#9;result = humanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+&#9;&#9;&#9;if humanoid and humanoid:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;result = result + humanoidRootPart.CFrame:vectorToWorldSpace(humanoid.CameraOffset)
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;return result
+&#9;end
+
+&#9;function this:ResetCameraLook()
+&#9;&#9;local camera = workspace.CurrentCamera
+&#9;&#9;if camera then
+&#9;&#9;&#9;self.cameraLook = camera and camera.CoordinateFrame.lookVector
+&#9;&#9;end
+&#9;end
+
+&#9;function this:GetCameraLook()
+&#9;&#9;if self.cameraLook == nil then
+&#9;&#9;&#9;self.cameraLook = workspace.CurrentCamera and workspace.CurrentCamera.CoordinateFrame.lookVector or Vector3.new(0,0,1)
+&#9;&#9;end
+&#9;&#9;return self.cameraLook
+&#9;end
+
+&#9;function this:GetCameraZoom()
+&#9;&#9;if this.currentZoom == nil then
+&#9;&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;&#9;this.currentZoom = player and clamp(player.CameraMinZoomDistance, player.CameraMaxZoomDistance, 10) or 10
+&#9;&#9;end
+&#9;&#9;return this.currentZoom
+&#9;end
+&#9;
+&#9;function this:GetCameraActualZoom()
+&#9;&#9;local camera = workspace.CurrentCamera
+&#9;&#9;if camera then
+&#9;&#9;&#9;return (camera.CoordinateFrame.p - camera.Focus.p).magnitude
+&#9;&#9;end
+&#9;end
+&#9;
+&#9;function this:ViewSizeX()
+&#9;&#9;local result = 1024
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;local mouse = player and player:GetMouse()
+&#9;&#9;if mouse then
+&#9;&#9;&#9;result = mouse.ViewSizeX
+&#9;&#9;end
+&#9;&#9;return result
+&#9;end
+&#9;
+&#9;function this:ViewSizeY()
+&#9;&#9;local result = 768
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;local mouse = player and player:GetMouse()
+&#9;&#9;if mouse then
+&#9;&#9;&#9;result = mouse.ViewSizeY
+&#9;&#9;end
+&#9;&#9;return result
+&#9;end
+&#9;
+&#9;function this:ScreenTranslationToAngle(translationVector)
+&#9;&#9;local screenX = this:ViewSizeX()
+&#9;&#9;local screenY = this:ViewSizeY()
+&#9;&#9;-- moving your finger across the screen should be a full rotation
+&#9;&#9;local xTheta = (translationVector.x / screenX) * math.pi*2
+&#9;&#9;local yTheta = (translationVector.y / screenY) * math.pi
+&#9;&#9;return Vector2.new(xTheta, yTheta)
+&#9;end
+&#9;
+&#9;function this:RotateCamera(startLook, xyRotateVector)&#9;&#9;
+&#9;&#9;-- Could cache these values so we don&apos;t have to recalc them all the time
+&#9;&#9;local startCFrame = CFrame.new(Vector3.new(), startLook)
+&#9;&#9;local startVertical = math.asin(startLook.y)
+&#9;&#9;local yTheta = clamp(-MAX_Y + startVertical, -MIN_Y + startVertical, xyRotateVector.y)
+&#9;&#9;self.cameraLook = (CFrame.Angles(0, -xyRotateVector.x, 0) * startCFrame * CFrame.Angles(-yTheta,0,0)).lookVector
+&#9;&#9;return this:GetCameraLook()
+&#9;end
+&#9;
+&#9;function this:IsInFirstPerson()
+&#9;&#9;return isFirstPerson
+&#9;end
+&#9;
+&#9;function this:ZoomCamera(desiredZoom)
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;if player then
+&#9;&#9;&#9;if player.CameraMode == Enum.CameraMode.LockFirstPerson then
+&#9;&#9;&#9;&#9;this.currentZoom = 0
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;this.currentZoom = clamp(player.CameraMinZoomDistance, player.CameraMaxZoomDistance, desiredZoom)
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;-- set mouse behavior
+&#9;&#9;if self:GetCameraZoom() &lt; 2 then
+&#9;&#9;&#9;isFirstPerson = true
+&#9;&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+&#9;&#9;else
+&#9;&#9;&#9;isFirstPerson = false
+&#9;&#9;&#9;if not self:GetShiftLock() then
+&#9;&#9;&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;return self:GetCameraZoom()
+&#9;end
+&#9;
+&#9;local function rk4Integrator(position, velocity, t)
+&#9;&#9;local direction = velocity &lt; 0 and -1 or 1
+&#9;&#9;local function acceleration(p, v)
+&#9;&#9;&#9;local accel = direction * math.max(1, (p / 3.3) + 0.5)
+&#9;&#9;&#9;return accel
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;local p1 = position
+&#9;&#9;local v1 = velocity
+&#9;&#9;local a1 = acceleration(p1, v1)
+&#9;&#9;local p2 = p1 + v1 * (t / 2)
+&#9;&#9;local v2 = v1 + a1 * (t / 2)
+&#9;&#9;local a2 = acceleration(p2, v2)
+&#9;&#9;local p3 = p1 + v2 * (t / 2)
+&#9;&#9;local v3 = v1 + a2 * (t / 2)
+&#9;&#9;local a3 = acceleration(p3, v3)
+&#9;&#9;local p4 = p1 + v3 * t
+&#9;&#9;local v4 = v1 + a3 * t
+&#9;&#9;local a4 = acceleration(p4, v4)
+&#9;&#9;
+&#9;&#9;local positionResult = position + (v1 + 2 * v2 + 2 * v3 + v4) * (t / 6)
+&#9;&#9;local velocityResult = velocity + (a1 + 2 * a2 + 2 * a3 + a4) * (t / 6)
+&#9;&#9;return positionResult, velocityResult
+&#9;end
+&#9;
+&#9;function this:ZoomCameraBy(zoomScale)
+&#9;&#9;local zoom = this:GetCameraActualZoom()
+&#9;&#9;if zoom then
+&#9;&#9;&#9;-- Can break into more steps to get more accurate integration
+&#9;&#9;&#9;zoom = rk4Integrator(zoom, zoomScale, 1)
+&#9;&#9;&#9;self:ZoomCamera(zoom)
+&#9;&#9;end
+&#9;&#9;return self:GetCameraZoom()
+&#9;end
+&#9;
+&#9;function this:ZoomCameraFixedBy(zoomIncrement)
+&#9;&#9;return self:ZoomCamera(self:GetCameraZoom() + zoomIncrement)
+&#9;end&#9;
+&#9;
+&#9;function this:Update()
+&#9;end
+
+
+&#9;local startPos = nil
+&#9;local lastPos = nil
+&#9;local panBeginLook = nil
+&#9;
+&#9;if UserInputService.TouchEnabled then
+
+&#9;&#9;local fingerTouches = {}
+&#9;&#9;local NumUnsunkTouches = 0
+&#9;&#9;
+&#9;&#9;UserInputService.InputBegan:connect(function(input, processed)
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.Touch then
+&#9;&#9;&#9;&#9;fingerTouches[input] = processed
+&#9;&#9;&#9;&#9;if not processed then&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;NumUnsunkTouches = NumUnsunkTouches + 1
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;&#9;local StartingDiff = nil
+&#9;&#9;local pinchBeginZoom = nil
+&#9;&#9;UserInputService.InputChanged:connect(function(input, processed)
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.Touch then
+&#9;&#9;&#9;&#9;if fingerTouches[input] == nil then
+&#9;&#9;&#9;&#9;&#9;fingerTouches[input] = processed
+&#9;&#9;&#9;&#9;&#9;if not processed then&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;NumUnsunkTouches = NumUnsunkTouches + 1
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;if NumUnsunkTouches == 1 then
+&#9;&#9;&#9;&#9;&#9;if fingerTouches[input] == false then
+&#9;&#9;&#9;&#9;&#9;&#9;panBeginLook = panBeginLook or this:GetCameraLook()
+&#9;&#9;&#9;&#9;&#9;&#9;startPos = startPos or input.Position
+&#9;&#9;&#9;&#9;&#9;&#9;lastPos = lastPos or startPos&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;this.UserPanningTheCamera = true
+&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;local totalTrans = input.Position - startPos
+&#9;&#9;&#9;&#9;&#9;&#9;lastPos = input.Position
+&#9;&#9;&#9;&#9;&#9;&#9;this:RotateCamera(panBeginLook, this:ScreenTranslationToAngle(totalTrans))
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;panBeginLook = nil
+&#9;&#9;&#9;&#9;&#9;startPos = nil
+&#9;&#9;&#9;&#9;&#9;lastPos = nil&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;this.UserPanningTheCamera = false
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;if NumUnsunkTouches == 2 then
+&#9;&#9;&#9;&#9;&#9;local unsunkTouches = {}
+&#9;&#9;&#9;&#9;&#9;for touch, wasSunk in pairs(fingerTouches) do
+&#9;&#9;&#9;&#9;&#9;&#9;if not wasSunk then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;table.insert(unsunkTouches, touch)
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;if #unsunkTouches == 2 then
+&#9;&#9;&#9;&#9;&#9;&#9;local difference = (unsunkTouches[1].Position - unsunkTouches[2].Position).magnitude
+&#9;&#9;&#9;&#9;&#9;&#9;if StartingDiff and pinchBeginZoom then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local scale = difference / math.max(0.01, StartingDiff)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;local clampedScale = clamp(0.1, 10, scale)
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;this:ZoomCamera(pinchBeginZoom / clampedScale)
+&#9;&#9;&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;StartingDiff = difference
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;pinchBeginZoom = this:GetCameraZoom()
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;&#9;StartingDiff = nil
+&#9;&#9;&#9;&#9;&#9;pinchBeginZoom = nil
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;&#9;UserInputService.InputEnded:connect(function(input, processed)
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.Touch then
+&#9;&#9;&#9;&#9;if fingerTouches[input] == false then
+&#9;&#9;&#9;&#9;&#9;if NumUnsunkTouches == 1 then
+&#9;&#9;&#9;&#9;&#9;&#9;panBeginLook = nil
+&#9;&#9;&#9;&#9;&#9;&#9;startPos = nil
+&#9;&#9;&#9;&#9;&#9;&#9;lastPos = nil
+&#9;&#9;&#9;&#9;&#9;&#9;this.UserPanningTheCamera = false
+&#9;&#9;&#9;&#9;&#9;elseif NumUnsunkTouches == 2 then
+&#9;&#9;&#9;&#9;&#9;&#9;StartingDiff = nil
+&#9;&#9;&#9;&#9;&#9;&#9;pinchBeginZoom = nil
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;if fingerTouches[input] ~= nil and fingerTouches[input] == false then
+&#9;&#9;&#9;&#9;&#9;NumUnsunkTouches = NumUnsunkTouches - 1
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;fingerTouches[input] = nil
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then -- Keyboard
+
+&#9;&#9;UserInputService.InputBegan:connect(function(input, processed)
+&#9;&#9;&#9;if processed then return end
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.MouseButton2 then
+&#9;&#9;&#9;&#9;-- Check if they are in first-person
+&#9;&#9;&#9;&#9;if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
+&#9;&#9;&#9;&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;panBeginLook = this:GetCameraLook()
+&#9;&#9;&#9;&#9;startPos = input.Position
+&#9;&#9;&#9;&#9;lastPos = startPos
+&#9;&#9;&#9;&#9;this.UserPanningTheCamera = true
+&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.I then
+&#9;&#9;&#9;&#9;this:ZoomCameraBy(-5)
+&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.O then
+&#9;&#9;&#9;&#9;this:ZoomCameraBy(5)
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if panBeginLook == nil then
+&#9;&#9;&#9;&#9;if input.KeyCode == Enum.KeyCode.Left then
+&#9;&#9;&#9;&#9;&#9;this.TurningLeft = true
+&#9;&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.Right then
+&#9;&#9;&#9;&#9;&#9;this.TurningRight = true
+&#9;&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.Comma then
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(this:GetCameraLook(), Vector2.new(math.rad(30),0))
+&#9;&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.Period then
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(this:GetCameraLook(), Vector2.new(math.rad(-30),0))
+&#9;&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.PageUp then
+&#9;&#9;&#9;&#9;--elseif input.KeyCode == Enum.KeyCode.Home then
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(this:GetCameraLook(), Vector2.new(0,math.rad(15)))
+&#9;&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.PageDown then
+&#9;&#9;&#9;&#9;--elseif input.KeyCode == Enum.KeyCode.End then
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(this:GetCameraLook(), Vector2.new(0,math.rad(-15)))
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;&#9;UserInputService.InputChanged:connect(function(input, processed)
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.MouseMovement then
+&#9;&#9;&#9;&#9;if startPos and lastPos and panBeginLook then
+&#9;&#9;&#9;&#9;&#9;--local currPos = input.Position
+&#9;&#9;&#9;&#9;&#9;local currPos = lastPos + input.Delta
+&#9;&#9;&#9;&#9;&#9;local totalTrans = currPos - startPos
+&#9;&#9;&#9;&#9;&#9;lastPos = currPos
+&#9;&#9;&#9;&#9;&#9;-- NOTE: we probably should not add the delta if we are already maxed out on the rotation angle.
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(panBeginLook, this:ScreenTranslationToAngle(totalTrans))
+&#9;&#9;&#9;&#9;elseif this:IsInFirstPerson() or this:GetShiftLock() then
+&#9;&#9;&#9;&#9;&#9;this:RotateCamera(this:GetCameraLook(), this:ScreenTranslationToAngle(input.Delta))
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+&#9;&#9;&#9;&#9;if not processed then
+&#9;&#9;&#9;&#9;&#9;this:ZoomCameraBy(clamp(-1, 1, -input.Position.Z) * 1.4)
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;&#9;UserInputService.InputEnded:connect(function(input, processed)
+&#9;&#9;&#9;if input.UserInputType == Enum.UserInputType.MouseButton2 then
+&#9;&#9;&#9;&#9;-- Check if they are in first-person
+&#9;&#9;&#9;&#9;if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
+&#9;&#9;&#9;&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;panBeginLook = nil
+&#9;&#9;&#9;&#9;startPos = nil
+&#9;&#9;&#9;&#9;lastPos = nil
+&#9;&#9;&#9;&#9;this.UserPanningTheCamera = false
+&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.Left then
+&#9;&#9;&#9;&#9;this.TurningLeft = false
+&#9;&#9;&#9;elseif input.KeyCode == Enum.KeyCode.Right then
+&#9;&#9;&#9;&#9;this.TurningRight = false
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;end
+&#9;
+&#9;local function OnPlayerAdded(player)
+&#9;&#9;player.Changed:connect(function(prop)
+&#9;&#9;&#9;if prop == &quot;CameraMode&quot; then
+&#9;&#9;&#9;&#9; this:ZoomCameraBy(0)
+&#9;&#9;&#9;end
+&#9;&#9;end)
+&#9;&#9;
+&#9;&#9;local function OnCharacterAdded(newCharacter)
+&#9;&#9;&#9;this:ZoomCamera(10)
+&#9;&#9;&#9;local humanoid = findPlayerHumanoid(player)
+&#9;&#9;&#9;local start = tick()
+&#9;&#9;&#9;while tick() - start &lt; 0.3 and (humanoid == nil or humanoid.Torso == nil) do
+&#9;&#9;&#9;&#9;wait()
+&#9;&#9;&#9;&#9;humanoid = findPlayerHumanoid(player)
+&#9;&#9;&#9;end
+&#9;&#9;&#9;if humanoid and humanoid.Torso and player.Character == newCharacter then
+&#9;&#9;&#9;&#9;this.cameraLook = (humanoid.Torso.CFrame.lookVector - Vector3.new(0,0.7,0)).unit
+&#9;&#9;&#9;&#9;-- reset old camera info so follow cam doesn&apos;t rotate us
+&#9;&#9;&#9;&#9;this.LastCameraTransform = nil
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;player.CharacterAdded:connect(OnCharacterAdded)
+&#9;&#9;if player.Character then
+&#9;&#9;&#9;spawn(function() OnCharacterAdded(player.Character) end)
+&#9;&#9;end
+&#9;end
+&#9;if PlayersService.LocalPlayer then
+&#9;&#9;OnPlayerAdded(PlayersService.LocalPlayer)
+&#9;end
+&#9;PlayersService.ChildAdded:connect(function(child)
+&#9;&#9;if child and PlayersService.LocalPlayer == child then
+&#9;&#9;&#9;OnPlayerAdded(PlayersService.LocalPlayer)
+&#9;&#9;end 
+&#9;end)
+&#9;&#9;
+&#9;return this
+end
+
+return CreateCamera
+</ProtectedString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX5744EB97A6D34E5AA94E31CE07E5D09D">
+				<Properties>
+					<string name="Name">ClassicCamera</string>
+					<ProtectedString name="Source">local PlayersService = game:GetService(&apos;Players&apos;)
+local UserInputService = game:GetService(&apos;UserInputService&apos;)
+local RootCameraCreator = require(script.Parent)
+
+local ZERO_VECTOR = Vector3.new(0, 0, 0)
+local UP_VECTOR = Vector3.new(0, 1, 0)
+local XZ_VECTOR = Vector3.new(1,0,1)
+
+local function clamp(low, high, num)
+&#9;if low &lt;= high then
+&#9;&#9;return math.min(high, math.max(low, num))
+&#9;end
+&#9;print(&quot;Trying to clamp when low:&quot;, low , &quot;is larger than high:&quot; , high , &quot;returning input value.&quot;)
+&#9;return num
+end
+
+local function IsFinite(num)
+&#9;return num == num and num ~= 1/0 and num ~= -1/0
+end
+
+local function IsFiniteVector3(vec3)
+&#9;return IsFinite(vec3.x) and IsFinite(vec3.y) and IsFinite(vec3.z)
+end
+
+-- May return NaN or inf or -inf
+local function findAngleBetweenXZVectors(vec2, vec1)
+&#9;-- This is a way of finding the angle between the two vectors:
+&#9;return math.atan2(vec1.X*vec2.Z-vec1.Z*vec2.X, vec1.X*vec2.X + vec1.Z*vec2.Z)
+end
+
+-- May return NaN or inf or -inf
+local function absoluteAngleBetween3dVectors(vec1, vec2)
+&#9;return math.acos(vec1:Dot(vec2) / (vec1.magnitude * vec2.magnitude))
+end
+
+local humanoidCache = {}
+local function findPlayerHumanoid(player)
+&#9;local character = player and player.Character
+&#9;if character then
+&#9;&#9;local resultHumanoid = humanoidCache[player]
+&#9;&#9;if resultHumanoid and resultHumanoid.Parent == character then
+&#9;&#9;&#9;return resultHumanoid
+&#9;&#9;else
+&#9;&#9;&#9;humanoidCache[player] = nil -- Bust Old Cache
+&#9;&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;&#9;if child:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;&#9;humanoidCache[player] = child
+&#9;&#9;&#9;&#9;&#9;return child
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local function CreateClassicCamera()
+&#9;local module = RootCameraCreator()
+
+&#9;local tweenAcceleration = math.rad(250)
+&#9;local tweenSpeed = math.rad(0)
+&#9;local tweenMaxSpeed = math.rad(250)
+&#9;
+&#9;local lastUpdate = tick()
+&#9;function module:Update()
+&#9;&#9;local now = tick()
+&#9;&#9;local userPanningTheCamera = (self.UserPanningTheCamera == true)
+&#9;&#9;
+&#9;&#9;if lastUpdate == nil or now - lastUpdate &gt; 1 then
+&#9;&#9;&#9;module:ResetCameraLook()
+&#9;&#9;&#9;self.LastCameraTransform = nil
+&#9;&#9;end&#9;
+&#9;&#9;
+&#9;&#9;if lastUpdate then
+&#9;&#9;&#9;-- Cap out the delta to 0.5 so we don&apos;t get some crazy things when we re-resume from
+&#9;&#9;&#9;local delta = math.min(0.5, now - lastUpdate)
+&#9;&#9;&#9;local angle = self.TurningLeft and -120 or 0
+&#9;&#9;&#9;angle = angle + (self.TurningRight and 120 or 0)&#9;&#9;&#9;
+&#9;&#9;&#9;if angle ~= 0 then userPanningTheCamera = true end
+&#9;&#9;&#9;self:RotateCamera(self:GetCameraLook(), Vector2.new(math.rad(angle * delta), 0))
+&#9;&#9;end
+
+&#9;&#9;-- Reset tween speed if user is panning
+&#9;&#9;if userPanningTheCamera then
+&#9;&#9;&#9;tweenSpeed = 0
+&#9;&#9;end
+
+&#9;&#9;local camera = &#9;workspace.CurrentCamera
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;local subjectPosition = self:GetSubjectPosition()
+&#9;&#9;
+&#9;&#9;if subjectPosition and player and camera then
+&#9;&#9;&#9;local zoom = self:GetCameraZoom()
+&#9;&#9;&#9;if zoom &lt;= 0 then
+&#9;&#9;&#9;&#9;zoom = 0.1
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;if self:GetShiftLock() and not self:IsInFirstPerson() then
+&#9;&#9;&#9;&#9;local offset = ((self:GetCameraLook() * XZ_VECTOR):Cross(UP_VECTOR).unit * 1.75)
+&#9;&#9;&#9;&#9;-- Check for NaNs
+&#9;&#9;&#9;&#9;if IsFiniteVector3(offset) then
+&#9;&#9;&#9;&#9;&#9;subjectPosition = subjectPosition + offset
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;zoom = math.max(zoom, 5)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;if self.LastCameraTransform and not userPanningTheCamera then
+&#9;&#9;&#9;&#9;&#9;local humanoid = findPlayerHumanoid(player)
+&#9;&#9;&#9;&#9;&#9;local cameraSubject = camera and camera.CameraSubject
+&#9;&#9;&#9;&#9;&#9;local isInVehicle = cameraSubject and cameraSubject:IsA(&apos;VehicleSeat&apos;)
+&#9;&#9;&#9;&#9;&#9;local isOnASkateboard = cameraSubject and cameraSubject:IsA(&apos;SkateboardPlatform&apos;)
+&#9;&#9;&#9;&#9;&#9;if (isInVehicle or isOnASkateboard) and lastUpdate and humanoid and humanoid.Torso then
+&#9;&#9;&#9;&#9;&#9;&#9;local forwardVector = humanoid.Torso.CFrame.lookVector
+&#9;&#9;&#9;&#9;&#9;&#9;if isOnASkateboard then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;forwardVector = cameraSubject.CFrame.lookVector
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;local timeDelta = (now - lastUpdate)
+&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;tweenSpeed = clamp(0, tweenMaxSpeed, tweenSpeed + tweenAcceleration * timeDelta)
+
+&#9;&#9;&#9;&#9;&#9;&#9;local percent = clamp(0, 1, tweenSpeed * timeDelta)
+&#9;&#9;&#9;&#9;&#9;&#9;if self:IsInFirstPerson() then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;percent = 1
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;local y = findAngleBetweenXZVectors(forwardVector, self:GetCameraLook())
+&#9;&#9;&#9;&#9;&#9;&#9;-- Check for NaNs
+&#9;&#9;&#9;&#9;&#9;&#9;if IsFinite(y) then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;self:RotateCamera(self:GetCameraLook(), Vector3.new(y * percent, 0, 0))
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;camera.Focus = CFrame.new(subjectPosition)
+&#9;&#9;&#9;camera.CoordinateFrame = CFrame.new(camera.Focus.p - (zoom * self:GetCameraLook()), camera.Focus.p)
+&#9;&#9;&#9;self.LastCameraTransform = camera.CoordinateFrame
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;lastUpdate = now
+&#9;end
+&#9;
+&#9;return module
+end
+
+return CreateClassicCamera
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX2E794D4A101246E2A297C1E0B836654A">
+				<Properties>
+					<string name="Name">FollowCamera</string>
+					<ProtectedString name="Source">local PlayersService = game:GetService(&apos;Players&apos;)
+local UserInputService = game:GetService(&apos;UserInputService&apos;)
+local RootCameraCreator = require(script.Parent)
+
+local ZERO_VECTOR = Vector3.new(0, 0, 0)
+local UP_VECTOR = Vector3.new(0, 1, 0)
+local XZ_VECTOR = Vector3.new(1,0,1)
+
+local function clamp(low, high, num)
+&#9;if low &lt;= high then
+&#9;&#9;return math.min(high, math.max(low, num))
+&#9;end
+&#9;print(&quot;Trying to clamp when low:&quot;, low , &quot;is larger than high:&quot; , high , &quot;returning input value.&quot;)
+&#9;return num
+end
+
+local function IsFinite(num)
+&#9;return num == num and num ~= 1/0 and num ~= -1/0
+end
+
+local function IsFiniteVector3(vec3)
+&#9;return IsFinite(vec3.x) and IsFinite(vec3.y) and IsFinite(vec3.z)
+end
+
+-- May return NaN or inf or -inf
+local function findAngleBetweenXZVectors(vec2, vec1)
+&#9;-- This is a way of finding the angle between the two vectors:
+&#9;return math.atan2(vec1.X*vec2.Z-vec1.Z*vec2.X, vec1.X*vec2.X + vec1.Z*vec2.Z)
+end
+
+-- May return NaN or inf or -inf
+local function absoluteAngleBetween3dVectors(vec1, vec2)
+&#9;return math.acos(vec1:Dot(vec2) / (vec1.magnitude * vec2.magnitude))
+end
+
+local humanoidCache = {}
+local function findPlayerHumanoid(player)
+&#9;local character = player and player.Character
+&#9;if character then
+&#9;&#9;local resultHumanoid = humanoidCache[player]
+&#9;&#9;if resultHumanoid and resultHumanoid.Parent == character then
+&#9;&#9;&#9;return resultHumanoid
+&#9;&#9;else
+&#9;&#9;&#9;humanoidCache[player] = nil -- Bust Old Cache
+&#9;&#9;&#9;for _, child in pairs(character:GetChildren()) do
+&#9;&#9;&#9;&#9;if child:IsA(&apos;Humanoid&apos;) then
+&#9;&#9;&#9;&#9;&#9;humanoidCache[player] = child
+&#9;&#9;&#9;&#9;&#9;return child
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;end
+&#9;end
+end
+
+local function CreateFollowCamera()
+&#9;local module = RootCameraCreator()
+&#9;
+&#9;local tweenAcceleration = math.rad(250)
+&#9;local tweenSpeed = math.rad(0)
+&#9;local tweenMaxSpeed = math.rad(250)
+&#9;
+&#9;local lastUpdate = tick()
+&#9;function module:Update()
+&#9;&#9;local now = tick()
+&#9;&#9;local userPanningTheCamera = (self.UserPanningTheCamera == true)
+
+&#9;&#9;if lastUpdate == nil or now - lastUpdate &gt; 1 then
+&#9;&#9;&#9;module:ResetCameraLook()
+&#9;&#9;&#9;self.LastCameraTransform = nil
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;if lastUpdate then
+&#9;&#9;&#9;-- Cap out the delta to 0.5 so we don&apos;t get some crazy things when we re-resume from
+&#9;&#9;&#9;local delta = math.min(0.5, now - lastUpdate)
+&#9;&#9;&#9;local angle = self.TurningLeft and -120 or 0
+&#9;&#9;&#9;angle = angle + (self.TurningRight and 120 or 0)
+&#9;&#9;&#9;if angle ~= 0 then userPanningTheCamera = true end
+&#9;&#9;&#9;self:RotateCamera(self:GetCameraLook(), Vector2.new(math.rad(angle * delta), 0))
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;-- Reset tween speed if user is panning
+&#9;&#9;if userPanningTheCamera then
+&#9;&#9;&#9;tweenSpeed = 0
+&#9;&#9;end
+&#9;&#9;
+
+&#9;&#9;local camera = &#9;workspace.CurrentCamera
+&#9;&#9;local player = PlayersService.LocalPlayer
+&#9;&#9;local subjectPosition = self:GetSubjectPosition()
+&#9;&#9;
+&#9;&#9;if subjectPosition and player and camera then
+&#9;&#9;&#9;local zoom = self:GetCameraZoom()
+&#9;&#9;&#9;if zoom &lt;= 0 then
+&#9;&#9;&#9;&#9;zoom = 0.1
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;if self:GetShiftLock() and not self:IsInFirstPerson() then
+&#9;&#9;&#9;&#9;local offset = ((self:GetCameraLook() * XZ_VECTOR):Cross(UP_VECTOR).unit * 1.75)
+&#9;&#9;&#9;&#9;-- Check for NaNs
+&#9;&#9;&#9;&#9;if IsFiniteVector3(offset) then
+&#9;&#9;&#9;&#9;&#9;subjectPosition = subjectPosition + offset
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;zoom = math.max(zoom, 5)
+&#9;&#9;&#9;else
+&#9;&#9;&#9;&#9;if self.LastCameraTransform and not userPanningTheCamera then
+&#9;&#9;&#9;&#9;&#9;local humanoid = findPlayerHumanoid(player)
+&#9;&#9;&#9;&#9;&#9;local cameraSubject = camera and camera.CameraSubject
+&#9;&#9;&#9;&#9;&#9;local isClimbing = humanoid and humanoid:GetState() == Enum.HumanoidStateType.Climbing
+&#9;&#9;&#9;&#9;&#9;local isInVehicle = cameraSubject and cameraSubject:IsA(&apos;VehicleSeat&apos;)
+&#9;&#9;&#9;&#9;&#9;local isOnASkateboard = cameraSubject and cameraSubject:IsA(&apos;SkateboardPlatform&apos;)
+&#9;&#9;&#9;&#9;&#9;if (isClimbing or isInVehicle or isOnASkateboard) and lastUpdate and humanoid and humanoid.Torso then
+&#9;&#9;&#9;&#9;&#9;&#9;local forwardVector = humanoid.Torso.CFrame.lookVector
+&#9;&#9;&#9;&#9;&#9;&#9;if isOnASkateboard then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;forwardVector = cameraSubject.CFrame.lookVector
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;local timeDelta = (now - lastUpdate)
+&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;tweenSpeed = clamp(0, tweenMaxSpeed, tweenSpeed + tweenAcceleration * timeDelta)
+&#9;&#9;&#9;&#9;&#9;&#9;
+&#9;&#9;&#9;&#9;&#9;&#9;local percent = clamp(0, 1, tweenSpeed * timeDelta)
+&#9;&#9;&#9;&#9;&#9;&#9;if not isClimbing and self:IsInFirstPerson() then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;percent = 1
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;&#9;local y = findAngleBetweenXZVectors(forwardVector, self:GetCameraLook())
+&#9;&#9;&#9;&#9;&#9;&#9;-- Check for NaN
+&#9;&#9;&#9;&#9;&#9;&#9;if IsFinite(y) then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;self:RotateCamera(self:GetCameraLook(), Vector3.new(y * percent, 0, 0))
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;elseif not self:IsInFirstPerson() then
+&#9;&#9;&#9;&#9;&#9;&#9;local lastVec = -(self.LastCameraTransform.p - subjectPosition)
+&#9;&#9;&#9;&#9;&#9;&#9;local y = findAngleBetweenXZVectors(lastVec, self:GetCameraLook())
+&#9;&#9;&#9;&#9;&#9;&#9;-- Check for NaNs
+&#9;&#9;&#9;&#9;&#9;&#9;if IsFinite(y)then
+&#9;&#9;&#9;&#9;&#9;&#9;&#9;self:RotateCamera(self:GetCameraLook(), Vector3.new(y, 0, 0))
+&#9;&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;&#9;end
+&#9;&#9;&#9;end
+&#9;&#9;&#9;
+&#9;&#9;&#9;camera.Focus = CFrame.new(subjectPosition)
+&#9;&#9;&#9;camera.CoordinateFrame = CFrame.new(camera.Focus.p - (zoom * self:GetCameraLook()), camera.Focus.p)
+&#9;&#9;&#9;self.LastCameraTransform = camera.CoordinateFrame
+&#9;&#9;end
+&#9;&#9;
+&#9;&#9;lastUpdate = now
+&#9;end
+&#9;
+&#9;return module
+end
+
+return CreateFollowCamera
+</ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="ModuleScript" referent="RBX0D3AD21C0C6B451AA4768A0C10A0789F">
+			<Properties>
+				<string name="Name">ShiftLockController</string>
+				<ProtectedString name="Source">--[[
+&#9;// FileName: ShiftLockController
+&#9;// Written by: jmargh
+&#9;// Description: Manages the state of shift lock mode
+&#9;
+&#9;// Required by:
+&#9;&#9;RootCamera
+--]]
+local ContextActionService = game:GetService(&apos;ContextActionService&apos;)
+local Players = game:GetService(&apos;Players&apos;)
+local StarterPlayer = game:GetService(&apos;StarterPlayer&apos;)
+local UserInputService = game:GetService(&apos;UserInputService&apos;)
+-- Settings and GameSettings are read only
+local Settings = UserSettings()&#9;-- ignore warning
+local GameSettings = Settings.GameSettings
+
+local ShiftLockController = {}
+
+--[[ Script Variables ]]--
+while not Players.LocalPlayer do
+&#9;wait()
+end
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local PlayerGui = LocalPlayer:WaitForChild(&apos;PlayerGui&apos;)
+local ScreenGui = nil
+local ShiftLockIcon = nil
+local IsShiftLockMode = false
+local IsShiftLocked = false
+local IsActionBound = false
+
+-- wrapping long conditional in function
+local function isShiftLockMode()
+&#9;return LocalPlayer.DevEnableMouseLock and GameSettings.ControlMode == Enum.ControlMode.MouseLockSwitch and
+&#9;&#9;&#9;LocalPlayer.DevComputerMovementMode ~= Enum.DevComputerMovementMode.ClickToMove and
+&#9;&#9;&#9;GameSettings.ComputerMovementMode ~= Enum.ComputerMovementMode.ClickToMove and
+&#9;&#9;&#9;LocalPlayer.DevComputerMovementMode ~= Enum.DevComputerMovementMode.Scriptable
+end
+
+if not UserInputService.TouchEnabled then&#9;-- TODO: Remove when safe on mobile
+&#9;IsShiftLockMode = isShiftLockMode()
+end
+
+--[[ Constants ]]--
+local SHIFT_LOCK_OFF = &apos;rbxasset://textures/ui/mouseLock_off.png&apos;
+local SHIFT_LOCK_ON = &apos;rbxasset://textures/ui/mouseLock_on.png&apos;
+local SHIFT_LOCK_CURSOR = &apos;rbxasset://textures/MouseLockedCursor.png&apos;
+
+--[[ Local Functions ]]--
+local function onShiftLockToggled()
+&#9;IsShiftLocked = not IsShiftLocked
+&#9;if IsShiftLocked then
+&#9;&#9;ShiftLockIcon.Image = SHIFT_LOCK_ON
+&#9;&#9;Mouse.Icon = SHIFT_LOCK_CURSOR
+&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+&#9;else
+&#9;&#9;ShiftLockIcon.Image = SHIFT_LOCK_OFF
+&#9;&#9;Mouse.Icon = &quot;&quot;
+&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+&#9;end
+end
+
+local function initialize()
+&#9;if ScreenGui then
+&#9;&#9;ScreenGui:Destroy()
+&#9;&#9;ScreenGui = nil
+&#9;end
+&#9;ScreenGui = Instance.new(&apos;ScreenGui&apos;)
+&#9;ScreenGui.Name = &quot;ControlGui&quot;
+&#9;
+&#9;local frame = Instance.new(&apos;Frame&apos;)
+&#9;frame.Name = &quot;BottomLeftControl&quot;
+&#9;frame.Size = UDim2.new(0, 130, 0, 46)
+&#9;frame.Position = UDim2.new(0, 0, 1, -46)
+&#9;frame.BackgroundTransparency = 1
+&#9;frame.Parent = ScreenGui
+&#9;
+&#9;ShiftLockIcon = Instance.new(&apos;ImageButton&apos;)
+&#9;ShiftLockIcon.Name = &quot;MouseLockLabel&quot;
+&#9;ShiftLockIcon.Size = UDim2.new(0, 62, 0, 62)
+&#9;ShiftLockIcon.Position = UDim2.new(0, 2, 0, -65)
+&#9;ShiftLockIcon.BackgroundTransparency = 1
+&#9;ShiftLockIcon.Image = IsShiftLocked and SHIFT_LOCK_ON or SHIFT_LOCK_OFF
+&#9;ShiftLockIcon.Visible = IsShiftLockMode
+&#9;ShiftLockIcon.Parent = frame
+&#9;
+&#9;ShiftLockIcon.MouseButton1Click:connect(onShiftLockToggled)
+&#9;
+&#9;ScreenGui.Parent = PlayerGui
+end
+
+--[[ Public API ]]--
+function ShiftLockController:IsShiftLocked()
+&#9;return IsShiftLockMode and IsShiftLocked
+end
+
+--[[ Input/Settings Changed Events ]]--
+local mouseLockSwitchFunc = function(actionName, inputState, inputObject)
+&#9;if IsShiftLockMode and inputState == Enum.UserInputState.Begin then
+&#9;&#9;onShiftLockToggled()
+&#9;end
+end
+
+local function disableShiftLock()
+&#9;if ShiftLockIcon then ShiftLockIcon.Visible = false end
+&#9;IsShiftLockMode = false
+&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+&#9;Mouse.Icon = &quot;&quot;
+&#9;ContextActionService:UnbindAction(&quot;ToggleShiftLock&quot;)
+&#9;IsActionBound = false
+end
+
+local function enableShiftLock()
+&#9;IsShiftLockMode = isShiftLockMode()
+&#9;if IsShiftLockMode then
+&#9;&#9;if ShiftLockIcon then
+&#9;&#9;&#9;ShiftLockIcon.Visible = true
+&#9;&#9;end
+&#9;&#9;if IsShiftLocked then
+&#9;&#9;&#9;Mouse.Icon = SHIFT_LOCK_CURSOR
+&#9;&#9;&#9;UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+&#9;&#9;end
+&#9;&#9;if not IsActionBound then
+&#9;&#9;&#9;ContextActionService:BindActionToInputTypes(&quot;ToggleShiftLock&quot;, mouseLockSwitchFunc, false, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift)
+&#9;&#9;&#9;IsActionBound = true
+&#9;&#9;end
+&#9;end
+end
+
+-- NOTE: This will fire for ControlMode when the settings menu is closed. If ControlMode is
+-- MouseLockSwitch on settings close, it will change the mode to Classic, then to ShiftLockSwitch.
+-- This is a silly hack, but needed to raise an event when the settings menu closes.
+GameSettings.Changed:connect(function(property)
+&#9;if property == &apos;ControlMode&apos; then
+&#9;&#9;if GameSettings.ControlMode == Enum.ControlMode.MouseLockSwitch then
+&#9;&#9;&#9;enableShiftLock()
+&#9;&#9;else
+&#9;&#9;&#9;disableShiftLock()
+&#9;&#9;end
+&#9;elseif property == &apos;ComputerMovementMode&apos; then
+&#9;&#9;if GameSettings.ComputerMovementMode == Enum.ComputerMovementMode.ClickToMove then
+&#9;&#9;&#9;disableShiftLock()
+&#9;&#9;else
+&#9;&#9;&#9;enableShiftLock()
+&#9;&#9;end
+&#9;end
+end)
+
+LocalPlayer.Changed:connect(function(property)
+&#9;if property == &apos;DevEnableMouseLock&apos; then
+&#9;&#9;if LocalPlayer.DevEnableMouseLock then
+&#9;&#9;&#9;enableShiftLock()
+&#9;&#9;else
+&#9;&#9;&#9;disableShiftLock()
+&#9;&#9;end
+&#9;elseif property == &apos;DevComputerMovementMode&apos; then
+&#9;&#9;if LocalPlayer.DevComputerMovementMode == Enum.DevComputerMovementMode.ClickToMove or
+&#9;&#9;&#9;LocalPlayer.DevComputerMovementMode == Enum.DevComputerMovementMode.Scriptable then
+&#9;&#9;&#9;--
+&#9;&#9;&#9;disableShiftLock()
+&#9;&#9;else
+&#9;&#9;&#9;enableShiftLock()
+&#9;&#9;end
+&#9;end
+end)
+
+LocalPlayer.CharacterAdded:connect(function(character)
+&#9;-- we need to recreate guis on character load
+&#9;if not UserInputService.TouchEnabled then
+&#9;&#9;initialize()
+&#9;end
+end)
+
+--[[ Initialization ]]--
+if not UserInputService.TouchEnabled then -- TODO: Remove when safe!
+&#9;initialize()
+&#9;if isShiftLockMode() then
+&#9;&#9;ContextActionService:BindActionToInputTypes(&quot;ToggleShiftLock&quot;, mouseLockSwitchFunc, false, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift)
+&#9;&#9;IsActionBound = true
+&#9;end
+end
+
+return ShiftLockController
+</ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>
